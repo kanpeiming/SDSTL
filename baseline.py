@@ -72,14 +72,14 @@ parser.add_argument('--fine_tuning', default='no', type=str, help='Fine-tuning �
 # ======================== 预训练模型加载（合并自 train_caltech101_baseline.py）========================
 parser.add_argument('--pretrained_path', type=str, default=None,
                     help='预训练模型参数路径')
-parser.add_argument('--load_dvs_input', action='store_true', default=False,
-                    help='是否加载 dvs_input 相关参数 (默认 False)')
-parser.add_argument('--load_features', action='store_true', default=False,
-                    help='是否加载 features 相关参数 (默认 False)')
-parser.add_argument('--load_bottleneck', action='store_true', default=False,
-                    help='是否加载 bottleneck 相关参数 (默认 False)')
-parser.add_argument('--load_classifier', action='store_true', default=False,
-                    help='是否加载 classifier 相关参数 (默认 False)')
+parser.add_argument('--skip_dvs_input', action='store_true', default=False,
+                    help='跳过加载 dvs_input 相关参数 (默认加载，加此参数则跳过)')
+parser.add_argument('--skip_features', action='store_true', default=False,
+                    help='跳过加载 features 相关参数 (默认加载，加此参数则跳过)')
+parser.add_argument('--skip_bottleneck', action='store_true', default=False,
+                    help='跳过加载 bottleneck 相关参数 (默认加载，加此参数则跳过)')
+parser.add_argument('--skip_classifier', action='store_true', default=False,
+                    help='跳过加载 classifier 相关参数 (默认加载，加此参数则跳过)')
 
 # ======================== 事件注意力（合并自 train_caltech101_baseline.py）========================
 parser.add_argument('--use_event_attention', action='store_true', default=False,
@@ -144,8 +144,8 @@ if __name__ == "__main__":
     print(f"事件注意力: {'启用 (reduction=' + str(args.event_attention_reduction) + ')' if args.use_event_attention else '未启用'}")
     if args.pretrained_path:
         print(f"预训练模型: {args.pretrained_path}")
-        print(f"  加载 dvs_input: {args.load_dvs_input}, features: {args.load_features}, "
-              f"bottleneck: {args.load_bottleneck}, classifier: {args.load_classifier}")
+        print(f"  跳过 dvs_input: {args.skip_dvs_input}, features: {args.skip_features}, "
+              f"bottleneck: {args.skip_bottleneck}, classifier: {args.skip_classifier} (默认全加载)")
     print('=' * 60 + '\n')
 
     # 生成日志名称
@@ -301,16 +301,16 @@ if __name__ == "__main__":
         model_dict = model.state_dict()
 
         # 构建需要排除的模块列表
-        # 如果没有指定 --load_* 标志，则排除对应模块
-        # 始终排除 edge_extractor
+        # 默认加载全部模块（edge_extractor 始终排除）
+        # 通过 --skip_* 标志排除对应模块
         exclude_modules = ['edge_extractor']
-        if not args.load_dvs_input:
+        if args.skip_dvs_input:
             exclude_modules.append('dvs_input')
-        if not args.load_features:
+        if args.skip_features:
             exclude_modules.append('features')
-        if not args.load_bottleneck:
+        if args.skip_bottleneck:
             exclude_modules.append('bottleneck')
-        if not args.load_classifier:
+        if args.skip_classifier:
             exclude_modules.append('classifier')
 
         # 过滤掉不匹配的键和需要排除的模块

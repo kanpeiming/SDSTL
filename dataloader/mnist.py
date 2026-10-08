@@ -112,6 +112,7 @@ def get_n_mnist(batch_size, T, split_ratio=0.9, train_set_ratio=1.0, size=32, en
         test_set_pth = os.path.join(DIR['MNISTDVS_CATCH'], f'test_set_{T}_{split_ratio}_{size}.pt')
 
         if os.path.exists(train_set_pth) and os.path.exists(test_set_pth):
+            # 不设 weights_only=True: spikingjelly 模式缓存的 Dataset 对象(非纯张量)，weights_only=True 会失败；仅 spikingjelly 模式触发，TET 模式不走此分支
             train_set = torch.load(train_set_pth)
             test_set = torch.load(test_set_pth)
         else:
@@ -176,7 +177,8 @@ class NMNIST(Dataset):
         Returns:
             tuple: (image, target) where target is index of the target class.
         """
-        data, target = torch.load(self.root + '/{}_np.pt'.format(index))
+        # weights_only=True: .pt 仅含张量元组，安全加载并消除 FutureWarning
+        data, target = torch.load(self.root + '/{}_np.pt'.format(index), weights_only=True)
         # if self.train:
         new_data = []
         for t in range(data.size(0)):
@@ -415,15 +417,15 @@ class TLMNIST(datasets.MNIST):
                 int((
                             dvs_index_end - dvs_index_start) * self.dvs_train_set_ratio))  # 利用求余，得到在该类别循环0次或多次后的最终索引，self.dvs_train_set_ratio可控制选取dvs图像的比例
 
-            # dvs图像的transform
-            dvs_img = torch.load(self.dvs_data[dvs_index])
+            # dvs图像的transform (weights_only=True: 仅张量，安全加载并消除FutureWarning)
+            dvs_img = torch.load(self.dvs_data[dvs_index], weights_only=True)
             if self.dvs_transform is not None:
                 dvs_img = self.dvs_trans(dvs_img)
 
             return (img, dvs_img), target
         else:
             # dvs图像的transform
-            dvs_img = torch.load(self.dvs_data[index])
+            dvs_img = torch.load(self.dvs_data[index], weights_only=True)
             if self.dvs_transform is not None:
                 dvs_img = self.dvs_trans(dvs_img)
             target = self.dvs_targets[index]  # 输入索引对应dvs图像的类别

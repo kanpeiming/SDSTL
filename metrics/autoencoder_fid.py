@@ -57,7 +57,8 @@ def compute_autoencoder_frechet_distance(gen, dataset_name, num_gen=5000, batch_
     stats = np.load(f'metrics/stats/{dataset_name.lower()}_test_{latent_dim}.npz')
     ref_mu, ref_sigma = stats["mu"], stats["sigma"]
 
-    feat_model.load_state_dict(torch.load(f'metrics/stat_checkpoints/{dataset_name.lower()}_{latent_dim}.pth', map_location='cuda:0'))
+    # weights_only=True: state_dict 为张量字典，安全加载并消除 FutureWarning
+    feat_model.load_state_dict(torch.load(f'metrics/stat_checkpoints/{dataset_name.lower()}_{latent_dim}.pth', map_location='cuda:0', weights_only=True))
 
     num_iters = int(np.ceil(num_gen / batch_size))
     l_feats = []
@@ -106,7 +107,8 @@ def make_custom_stats(stat_name, dataset_name, checkpoint, latent_dim=64,
     else:
         raise ValueError()
 
-    feat_model.load_state_dict(torch.load(checkpoint))
+    # weights_only=True: state_dict 为张量字典，安全加载并消除 FutureWarning
+    feat_model.load_state_dict(torch.load(checkpoint, weights_only=True))
     
     l_feats = []
     with torch.no_grad():

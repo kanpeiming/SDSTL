@@ -211,7 +211,8 @@ def preprocess_cepdvs_rgb_to_edge(rgb_root, output_dir, csv_root, img_size=48):
     output_files = sorted([f for f in os.listdir(output_dir) if f.endswith('.pt')])
     if output_files:
         test_file = os.path.join(output_dir, output_files[0])
-        data, label = torch.load(test_file)
+        # weights_only=True: 仅张量元组，安全加载并消除 FutureWarning
+        data, label = torch.load(test_file, weights_only=True)
         print(f"  样本 ({output_files[0]}):")
         print(f"    边缘图形状: {data.shape}")
         print(f"    数据类型: {data.dtype}")
@@ -221,7 +222,8 @@ def preprocess_cepdvs_rgb_to_edge(rgb_root, output_dir, csv_root, img_size=48):
         # 统计标签分布
         label_counts = {}
         for pt_file in output_files[:100]:  # 采样前100个文件
-            _, lbl = torch.load(os.path.join(output_dir, pt_file))
+            # weights_only=True: 仅张量元组，安全加载并消除 FutureWarning
+            _, lbl = torch.load(os.path.join(output_dir, pt_file), weights_only=True)
             lbl = lbl.item() if torch.is_tensor(lbl) else lbl
             label_counts[lbl] = label_counts.get(lbl, 0) + 1
         print(f"\n  标签分布（前100个样本）:")

@@ -181,7 +181,6 @@ print(f"日志目录: {writer.log_dir}")
 
 if __name__ == "__main__":
     common_utils.seed_all(args.seed)
-    f = open(f"{args.data_set}_{args.seed}_{('edge' if args.source_mode == 'edge' else 'rgb')}2dvs_result.txt", "a")
 
     print("\n" + "=" * 80)
     print(f"{source_tag}->DVS 迁移学习 ({args.data_set})")
@@ -391,27 +390,6 @@ if __name__ == "__main__":
     writer.add_scalar(tag="final_test/accuracy5", scalar_value=test_acc5, global_step=0)
     writer.add_scalar(tag="final_test/loss", scalar_value=test_loss, global_step=0)
 
-    source_ratio_val = args.edge_sample_ratio if args.source_mode == 'edge' else args.RGB_sample_ratio
-    write_content = (
-        f'=== {source_tag}->DVS 迁移学习结果 ({args.data_set}) ===\n'
-        f'种子: {args.seed}\n'
-        f'数据集: {args.data_set}\n'
-        f'源域模式: {args.source_mode}\n'
-        f'类别数: {args.num_classes}\n'
-    )
-    if args.data_set == 'Caltech101' and args.source_mode == 'rgb':
-        write_content += f'注意: RGB数据已移除Faces类，保持101类（含BACKGROUND_Google）\n'
-    write_content += (
-        f'预训练模型: {args.pretrained_path if args.pretrained_path else "无（从头训练）"}\n'
-        f'编码器迁移损失: {args.encoder_tl_lamb} × {args.encoder_tl_loss_type}\n'
-        f'特征迁移损失: {args.feature_tl_lamb} × {args.feature_tl_loss_type}\n'
-        f'{source_tag}样本比例: {source_ratio_val}, DVS样本比例: {args.dvs_sample_ratio}\n'
-        f'best_train_acc: {best_train_acc:.4f}\n'
-        f'test_acc1: {test_acc1:.4f}, test_acc5: {test_acc5:.4f}, test_loss: {test_loss:.5f}\n'
-        f'==============================\n\n'
-    )
-    f.write(write_content)
-    f.close()
     writer.close()
 
     print(f"\n训练完成！模型已保存到: {os.path.join(model_path, 'best_model.pth')}")

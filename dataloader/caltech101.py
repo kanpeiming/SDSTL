@@ -556,7 +556,7 @@ def get_caltech101_gray(batch_size, train_set_ratio=1.0):
 
 
 def get_n_caltech101(batch_size,T,split_ratio=0.9,train_set_ratio=1.0,size=224,encode_type='TET',use_eventrpg=False,eventrpg_mix_prob=0.5):
-    if encode_type is "spikingjelly":
+    if encode_type == "spikingjelly":
 
         trans = DVSResize((size, size), T)
 
@@ -575,13 +575,13 @@ def get_n_caltech101(batch_size,T,split_ratio=0.9,train_set_ratio=1.0,size=224,e
                 os.makedirs(DIR['Caltech101DVS_CATCH'])
             torch.save(train_set, train_set_pth)
             torch.save(test_set, test_set_pth)
-    elif encode_type is "TET":
+    elif encode_type == "TET":
         path = '/home/user/kpm/kpm/Dataset/Caltech101/n-caltech101'
         train_path = path + '/train'
         test_path = path + '/test'
         train_set = NCaltech101(root=train_path, train=True, transform=True, use_eventrpg=use_eventrpg, eventrpg_mix_prob=eventrpg_mix_prob)
         test_set = NCaltech101(root=test_path, train=False, transform=False, use_eventrpg=False)
-    elif encode_type is "3_channel":
+    elif encode_type == "3_channel":
         pass
 
     # take train set by train_set_ratio
@@ -629,8 +629,14 @@ class NCaltech101(Dataset):
         Returns:
             tuple: (image, target) where target is index of the target class.
         """
-        data, target = torch.load(self.root + '/{}_np.pt'.format(index))
-        
+        # weights_only=True: .pt 仅含张量元组，安全加载并消除 FutureWarning
+        data, target = torch.load(self.root + '/{}.pt'.format(index), weights_only=True)
+
+        # Caltech101-DVS 的 .pt 存储为 (C,H,W,T)=(2,128,128,10)，需转为 (T,C,H,W) 与 TET/VGGSNN 对齐
+        # 仅当第0维==2(C) 且 第1维!=2(非(T,C,...))时才 permute，避免误伤已是 (T,C,H,W) 的数据
+        if data.dim() == 4 and data.shape[0] == 2 and data.shape[1] != 2:
+            data = data.permute(3, 0, 1, 2).contiguous()
+
         # 优化：批量resize，避免Tensor→PIL→Tensor转换
         # 直接使用torch.nn.functional.interpolate一次性处理所有时间步
         if data.shape[2] != 48 or data.shape[3] != 48:

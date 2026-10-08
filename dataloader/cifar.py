@@ -287,6 +287,7 @@ def get_cifar10_DVS(batch_size, T, split_ratio=0.9, train_set_ratio=1, size=32, 
         test_set_pth = os.path.join(DIR['CIFAR10DVS_CATCH'], f'test_set_{T}_{split_ratio}_{size}.pt')
 
         if os.path.exists(train_set_pth) and os.path.exists(test_set_pth):
+            # 不设 weights_only=True: spikingjelly 模式缓存的 Dataset 对象(非纯张量)，weights_only=True 会失败；仅 spikingjelly 模式触发，TET 模式不走此分支
             train_set = torch.load(train_set_pth)
             test_set = torch.load(test_set_pth)
         else:
@@ -374,7 +375,8 @@ class DVSCifar10(Dataset):
         Returns:
             tuple: (image, target) where target is index of the target class.
         """
-        data, target = torch.load(self.root + '/{}_mat.pt'.format(index))
+        # weights_only=True: .pt 仅含张量元组，安全加载并消除 FutureWarning
+        data, target = torch.load(self.root + '/{}_mat.pt'.format(index), weights_only=True)
         # if self.train:
         new_data = []
         for t in range(data.size(0)):
@@ -500,7 +502,8 @@ class Channel_3_DVSCifar10(Dataset):
         Returns:
             tuple: (image, target) where target is index of the target class.
         """
-        data, target = torch.load(self.root + '/{}.pt'.format(index))
+        # weights_only=True: .pt 仅含张量元组，安全加载并消除 FutureWarning
+        data, target = torch.load(self.root + '/{}.pt'.format(index), weights_only=True)
         T, C, H, W = data.shape
         # if self.train:
         new_data = []

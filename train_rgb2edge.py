@@ -104,6 +104,7 @@ args = parser.parse_args()
 # 兼容 --epochs 和 --epoch（--epochs 优先，回退到 --epoch）
 if args.epochs is not None:
     args.epoch = args.epochs
+args.epochs = args.epoch  # 确保 args.epochs 非None，兼容 pretrainer.py 中 range(args.epochs) 的用法
 
 # 根据数据集设置类别数
 dataset_cls = {
@@ -162,7 +163,6 @@ print(f"模型保存: {model_path}")
 
 if __name__ == "__main__":
     common_utils.seed_all(args.seed)
-    f = open(f"{args.data_set}_{args.seed}_rgb2edge_pretrain_result.txt", "a")
 
     print("\n" + "=" * 80)
     print(f"RGB->Edge 预训练 (双Sobel核边缘提取: Sobel幅值 + 简化Canny) - {args.data_set}")
@@ -403,28 +403,7 @@ if __name__ == "__main__":
     writer.add_scalar(tag="final/rgb_edge_loss", scalar_value=test_loss, global_step=0)
     writer.add_scalar(tag="final/rgb_edge_train_accuracy", scalar_value=best_train_acc, global_step=0)
 
-    # 保存结果到文件
-    write_content = (
-        f'=== {args.data_set} RGB->Edge预训练 结果 ===\n'
-        f'数据集: {args.data_set}\n'
-        f'种子: {args.seed}\n'
-        f'损失函数: {"TRT" if args.use_trt else "TET"}\n'
-        f'边缘提取器: 双Sobel核 (SobelEdgeExtractionModule梯度幅值 + CannyEdgeDetectionModule简化Canny二值, 2通道输出)\\n'
-        f'RGB转灰度: {"启用" if args.rgb_to_gray else "未启用"}\n'
-        f'模型: {"VGGSNNwoAP" if args.use_woap else "VGGSNN"}\n'
-        f'预训练epochs: {args.epoch}, 学习率: {args.lr}\n'
-        f'编码器迁移损失: {args.encoder_tl_lamb} × {args.encoder_tl_loss_type}\n'
-        f'特征迁移损失: {args.feature_tl_lamb} × {args.feature_tl_loss_type}\n'
-        f'RGB样本比例: {args.RGB_sample_ratio}\n'
-        f'RGB->Edge预训练准确率: {test_acc1:.4f}%\n'
-        f'预训练模型保存路径: {pretrained_path}\n'
-        f'=====================================\n\n'
-    )
-    f.write(write_content)
-    f.close()
-
     writer.close()
     print(f"\n预训练完成！模型已保存到: {pretrained_path}")
-    print(f"结果已记录到: {args.data_set}_{args.seed}_rgb2edge_pretrain_result.txt")
     print(f"\n使用预训练参数进行 DVS 微调:")
     print(f"  python train_edge2dvs.py --data_set {args.data_set} --pretrained_path {pretrained_path}")
