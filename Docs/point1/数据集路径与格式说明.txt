@@ -1,0 +1,205 @@
+================================================================================
+ESVAE 项目 数据集路径与数据格式说明
+================================================================================
+生成日期: 2026-10-08
+用途: 记录基线实验(baseline.py, DVS直接训练)与预训练实验(train_rgb2edge.py,
+      RGB→Edge)所用数据集的绝对路径、目录结构、张量格式与加载方式。
+来源: 以源码 dataloader/{cifar.py, caltech101.py, cepdvs.py} 与入口脚本
+      {baseline.py, train_rgb2edge.py} 为准核对(非凭记忆)。
+
+--------------------------------------------------------------------------------
+【本 txt 文件的组织格式说明】
+--------------------------------------------------------------------------------
+文件分为两大块:
+  一、基线实验 DVS 数据集(baseline.py 直接在 DVS 事件数据上训练 SNN)
+  二、预训练 RGB→Edge 数据集(train_rgb2edge.py 用 RGB 图像预训练编码器)
+每个数据集条目统一包含以下字段:
+  - 入口调用  : baseline.py / train_rgb2edge.py 中的调用与 encode_type
+  - 加载函数  : dataloader 中的 get_xxx 函数
+  - 数据集类  : 实际读取文件的 Dataset 子类
+  - 绝对路径  : 硬编码在源码中的路径
+  - 目录结构  : 文件在磁盘上的组织形式
+  - 单样本格式: 每个 .pt/.mat/.jpg 存储的张量形状与含义
+  - 标签来源  : 标签如何获得
+  - 划分方式  : train/test 划分
+  - 源码位置  : 关键代码行号(便于复核)
+
+
+================================================================================
+一、基线实验 DVS 数据集(baseline.py, encode_type 默认 TET)
+================================================================================
+
+--------------------------------------------------------------------------------
+1. CIFAR10-DVS  (10 类)
+--------------------------------------------------------------------------------
+入口调用  : baseline.py:184-191  -> get_cifar10_DVS(batch_size, T, encode_type='TET')
+加载函数  : dataloader/cifar.py:270  get_cifar10_DVS(...), TET 分支 cifar.py:302-307
+数据集类  : DVSCifar10v1  (cifar.py 约 414-485 行)
+绝对路径  : /home/user/Datasets/CIFAR10/CIFAR10DVS/temporal_effecient_training_0.9_mat
+目录结构  : {上述路径}/train/{类别}/*.pt
+            {上述路径}/test/{类别}/*.pt
+            类别目录名按 sorted() 字母序对应标签:
+            airplane=0, automobile=1, bird=2, cat=3, deer=4,
+            dog=5, frog=6, horse=7, ship=8, truck=9
+单样本格式: 每个 .pt 是【纯张量】(非元组), 形状 (T, 2, H, W)
+            T=时间步(由 --T 传入, 默认 10), 2=极性通道(ON/OFF), H=W=48
+            加载: data = torch.load(filepath, weights_only=True)  直接得到张量
+标签来源  : 由所在类别文件夹名推断(不存入 .pt)
+划分方式  : train/test 已在磁盘上分为两个目录, 不再按 split_ratio 重切
+源码位置  : cifar.py:303(path硬编码) 302-307(TET分支) 439-448(_build_index按类别)
+            453-485(__getitem__ 纯张量加载)
+注意      : cifar.py:32 的 DIR['CIFAR10DVS'] 仅用于 spikingjelly 模式;
+            TET 模式硬编码 cifar.py:303, 不读 DIR。
+
+--------------------------------------------------------------------------------
+2. N-Caltech101 DVS  (101 类)
+--------------------------------------------------------------------------------
+入口调用  : baseline.py:211-218  -> get_n_caltech101(batch_size, T, encode_type='TET')
+            (仅当未传 --caltech101_dvs_path 时走此分支; 默认不传)
+加载函数  : dataloader/caltech101.py:558  get_n_caltech101(...), TET 分支 578-583
+数据集类  : NCaltech101  (caltech101.py:607-)
+绝对路径  : /home/user/kpm/kpm/Dataset/Caltech101/n-caltech101
+目录结构  : {上述路径}/train/{index}.pt
+            {上述路径}/test/{index}.pt
+            文件名形如 0.pt, 1.pt, ... (无 _np 后缀, 此前已修)
+单样本格式: 每个 .pt 存【元组】(data, target)
+            data 原始形状 (C, H, W, T) = (2, 128, 128, 10)
+            加载时若 data.shape[0]==2 且 data.shape[1]!=2, 执行
+            data.permute(3,0,1,2) 转为 (T, C, H, W) = (10, 2, 128, 128)
+            target 为类别标签(0~100)
+            加载: data, target = torch.load(root + '/{}.pt'.format(index), weights_only=True)
+标签来源  : 存入 .pt 元组的第二个元素 target
+划分方式  : train/test 已在磁盘上分为两个目录
+样本数量  : 约 9000 训练 / 1000 测试
+源码位置  : caltech101.py:579(path硬编码) 578-583(TET分支)
+            633-638(__getitem__ permute 修正) 607(NCaltech101类)
+注意      : caltech101.py:18 的 DIR['Caltech101DVS'] 指向
+            NCALTECH101/NCALTECH101/Caltech101, 但 TET 分支硬编码 579 行
+            /home/user/kpm/kpm/Dataset/Caltech101/n-caltech101, 不读 DIR。
+            维度顺序与 CIFAR10-DVS 的 (T,C,H,W) 不同, 已在 __getitem__ 修正。
+
+--------------------------------------------------------------------------------
+3. CEP-DVS  (20 类)
+--------------------------------------------------------------------------------
+入口调用  : baseline.py:228-234  -> get_cepdvs_dvs(batch_size, train_set_ratio,
+            img_size, time_bins=T, split_ratio=0.9)
+加载函数  : dataloader/cepdvs.py:738  get_cepdvs_dvs(...)  默认 use_processed=True
+数据集类  : CEPDVSDVSProcessedDataset  (优先, cepdvs.py:287-331)
+            CEPDVSDVSDataset             (回退, cepdvs.py:220-256, 读原始 .mat)
+绝对路径  :
+  (a) 预处理 .pt(优先): /home/user/kpm/kpm/Dataset/CEP-DVS/data/dvs_processed/*.pt
+                       (DIR['CEPDVS_DVS_PROCESSED'], cepdvs.py:33)
+  (b) 原始 .mat(回退) : /home/user/kpm/kpm/Dataset/CEP-DVS/data/MAT/img/*.mat
+                       (DIR['CEPDVS_DVS'], cepdvs.py:32)
+目录结构  : 平铺, 文件名形如 01891.pt / 01891.mat (前缀补零到 5 位)
+单样本格式:
+  (a) 预处理 .pt: 存元组 (frames, label_ignored)
+            加载: frames, _ = torch.load(file_path, weights_only=True)
+            frames 形状 (time_bins, 2, img_size, img_size) = (10, 2, 48, 48)
+            注意 .pt 内第二个元素被丢弃, label 实际取自 pathFile.csv
+  (b) 原始 .mat : scipy.io.loadmat 读取, 再按时分箱重组为 (T,2,H,W)
+标签来源  : pathFile.csv  (/home/user/kpm/kpm/Dataset/CEP-DVS/pathFile.csv)
+            从文件名提取数字索引(如 01891.pt -> 1891), 查 csv 得 20 类标签
+            (CEPDVS_CLASSES 映射, cepdvs.py:47-68)
+划分方式  : 不分 train/test 目录; get_cepdvs_dvs 内按 split_ratio=0.9 切
+            10000 样本 -> 9000 训练 / 1000 测试
+源码位置  : cepdvs.py:30-34(路径配置) 738-766(get_cepdvs_dvs)
+            287-331(CEPDVSDVSProcessedDataset) 220-256(CEPDVSDVSDataset)
+
+
+================================================================================
+二、预训练 RGB→Edge 数据集(train_rgb2edge.py)
+================================================================================
+说明: train_rgb2edge.py 用 RGB 图像训练编码器, 模型内嵌双 Sobel 边缘提取器
+      实时生成 Edge 监督信号, 故磁盘上只需 RGB 源数据, 无需预先存 Edge。
+
+--------------------------------------------------------------------------------
+1. CIFAR10 RGB  (10 类)
+--------------------------------------------------------------------------------
+入口调用  : train_rgb2edge.py:217-219  -> get_cifar10(batch_size, RGB_sample_ratio)
+加载函数  : dataloader/cifar.py:213  get_cifar10(...)
+数据集类  : CIFAR10ClsPT  (cifar.py 约 175-202)
+绝对路径  : /home/user/kpm/kpm/Dataset/CIFAR10/cifar10_rgb
+            (DIR['CIFAR10RGB_CLS'], cifar.py:37)
+目录结构  : {上述路径}/train/{类别}/*.pt
+            {上述路径}/test/{类别}/*.pt
+            类别顺序同 CIFAR10-DVS: airplane=0 ... truck=9 (sorted 字母序)
+单样本格式: 每个 .pt 是【纯张量】, 形状 (3, 48, 48), dtype=float32, 值域 [0,1]
+            加载: data = torch.load(filepath, weights_only=True)
+标签来源  : 由类别文件夹名 sorted() 字母序推断
+划分方式  : train/test 目录; 但预训练阶段 test_dataset=None,
+            即只用 train 训练, 不测 test(train_rgb2edge.py:221)
+生成方式  : 由 data_process/preprocess_cifar10_rgb2cls.py 生成
+            (读 torchvision CIFAR10 /home/user/kpm/kpm/Dataset/CIFAR10/cifar10)
+源码位置  : cifar.py:37(DIR) 175-202(CIFAR10ClsPT) 213-268(get_cifar10)
+
+--------------------------------------------------------------------------------
+2. Caltech101 RGB  (101 类)
+--------------------------------------------------------------------------------
+入口调用  : train_rgb2edge.py:178-183  -> get_caltech101(batch_size, train_set_ratio, img_size)
+加载函数  : dataloader/caltech101.py:314  get_caltech101(...)
+数据集类  : torchvision.datasets.ImageFolder  (caltech101.py:376)
+绝对路径  : /home/user/kpm/kpm/Dataset/Caltech101/caltech101/101_ObjectCategories
+            (DIR['Caltech101'], caltech101.py:17)
+目录结构  : {上述路径}/{类别名}/*.jpg    (ImageFolder 风格, 平铺类别子目录)
+单样本格式: .jpg 图像, 经 transforms: Resize(48,48) -> ToTensor -> Normalize
+            加载后为张量 (3, 48, 48)
+标签来源  : ImageFolder 按类别目录名 sorted() 自动编号
+划分方式  : 无独立 test 目录; get_caltech101 内手动 90/10 划分
+            (9144 张 -> 约 8230 训练 / 914 测试)
+类别处理  : N-Caltech101 标准: 移除 Faces 类, 保留 BACKGROUND_Google
+            最终 101 类 = 100 物体类 + 1 背景类
+样本数量  : 9144 张
+源码位置  : caltech101.py:17(DIR) 314-411(get_caltech101) 376(ImageFolder加载)
+
+--------------------------------------------------------------------------------
+3. CEP-DVS RGB  (20 类)
+--------------------------------------------------------------------------------
+入口调用  : train_rgb2edge.py:205-210  -> get_cepdvs(batch_size, train_set_ratio, img_size)
+加载函数  : dataloader/cepdvs.py:666  get_cepdvs(...)
+数据集类  : CEPDVSRGBDataset  (cepdvs.py:168-217)
+绝对路径  : /home/user/kpm/kpm/Dataset/CEP-DVS/data/img/*.jpg
+            (DIR['CEPDVS_RGB'], cepdvs.py:31)
+目录结构  : 平铺, 文件名形如 01891.jpg (前缀补零到 5 位)
+单样本格式: .jpg 图像, Image.open().convert('RGB') -> transforms
+            -> 张量 (3, img_size, img_size) = (3, 48, 48)
+标签来源  : pathFile.csv  (/home/user/kpm/kpm/Dataset/CEP-DVS/pathFile.csv)
+            从文件名提取数字索引(如 01891.jpg -> 1891) 查 csv 得 20 类标签
+划分方式  : 无独立 test 目录; get_cepdvs 内按 90/10 划分
+样本数量  : 10000 张
+源码位置  : cepdvs.py:31(DIR) 168-217(CEPDVSRGBDataset) 666-692(get_cepdvs)
+
+
+================================================================================
+三、路径速查表(汇总)
+================================================================================
+[基线 DVS]
+  CIFAR10-DVS    /home/user/Datasets/CIFAR10/CIFAR10DVS/temporal_effecient_training_0.9_mat/{train,test}/{cls}/*.pt
+  N-Caltech101   /home/user/kpm/kpm/Dataset/Caltech101/n-caltech101/{train,test}/{index}.pt
+  CEP-DVS        /home/user/kpm/kpm/Dataset/CEP-DVS/data/dvs_processed/*.pt  (优先)
+                 /home/user/kpm/kpm/Dataset/CEP-DVS/data/MAT/img/*.mat       (回退)
+
+[预训练 RGB]
+  CIFAR10 RGB    /home/user/kpm/kpm/Dataset/CIFAR10/cifar10_rgb/{train,test}/{cls}/*.pt
+  Caltech101 RGB /home/user/kpm/kpm/Dataset/Caltech101/caltech101/101_ObjectCategories/{cls}/*.jpg
+  CEP-DVS RGB    /home/user/kpm/kpm/Dataset/CEP-DVS/data/img/*.jpg
+
+[公共]
+  CEP-DVS 标签表 /home/user/kpm/kpm/Dataset/CEP-DVS/pathFile.csv
+  CEP-DVS 根目录 /home/user/kpm/kpm/Dataset/CEP-DVS
+
+
+================================================================================
+四、关键差异提示
+================================================================================
+1. CIFAR10-DVS 与 CIFAR10-RGB 目录形式对称(均按类别子目录), 但内容不同:
+   - DVS: (T,2,H,W) 事件张量;  RGB: (3,H,W) 图像张量。
+2. N-Caltech101 DVS 的 .pt 存【元组 (data,target)】, data 原始 (C,H,W,T),
+   需 permute 转为 (T,C,H,W); 其余 DVS 多为 (T,2,H,W) 或元组。
+3. CEP-DVS 的标签统一来自 pathFile.csv(不靠目录/不靠 .pt 第二元素),
+   DVS 与 RGB 文件名同号(01891)一一对应, 便于配对。
+4. CEP-DVS baseline 优先读预处理 .pt (dvs_processed), 不存在才回退原始 .mat;
+   预处理 .pt 内第二个元素被丢弃, label 实际取自 csv。
+5. 多处 .pt 加载使用 weights_only=True 以消除 FutureWarning
+   (DVS/RGB 纯张量或元组场景均安全; 仅含自定义对象的 checkpoint 不加)。
+================================================================================

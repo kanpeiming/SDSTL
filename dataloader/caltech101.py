@@ -555,7 +555,7 @@ def get_caltech101_gray(batch_size, train_set_ratio=1.0):
     return train_dataloader, test_dataloader
 
 
-def get_n_caltech101(batch_size,T,split_ratio=0.9,train_set_ratio=1.0,size=224,encode_type='TET',use_eventrpg=False,eventrpg_mix_prob=0.5):
+def get_n_caltech101(batch_size,T,split_ratio=0.9,train_set_ratio=1.0,size=224,encode_type='TET',use_eventrpg=False,eventrpg_mix_prob=0.5,data_root=None):
     if encode_type == "spikingjelly":
 
         trans = DVSResize((size, size), T)
@@ -576,7 +576,7 @@ def get_n_caltech101(batch_size,T,split_ratio=0.9,train_set_ratio=1.0,size=224,e
             torch.save(train_set, train_set_pth)
             torch.save(test_set, test_set_pth)
     elif encode_type == "TET":
-        path = '/home/user/kpm/kpm/Dataset/Caltech101/n-caltech101'
+        path = data_root if data_root is not None else '/home/user/kpm/kpm/Dataset/Caltech101/n-caltech101'
         train_path = path + '/train'
         test_path = path + '/test'
         train_set = NCaltech101(root=train_path, train=True, transform=True, use_eventrpg=use_eventrpg, eventrpg_mix_prob=eventrpg_mix_prob)
@@ -663,7 +663,7 @@ class NCaltech101(Dataset):
         if self.target_transform is not None:
             target = self.target_transform(target)
        
-        return data, target.long().squeeze(-1)
+        return data, torch.as_tensor(target).long().squeeze(-1)
 
     def __len__(self):
         return len(os.listdir(self.root))
@@ -1306,7 +1306,7 @@ class NCaltech101Dataset(Dataset):
                 off_x, off_y = random.randint(-5, 5), random.randint(-5, 5)
                 data = torch.roll(data, shifts=(off_x, off_y), dims=(2, 3))
         
-        return data, target.long().squeeze(-1)
+        return data, torch.as_tensor(target).long().squeeze(-1)
 
     def __len__(self):
         return len(self.files)
@@ -1597,16 +1597,14 @@ class TLEdge2DVSDataset(Dataset):
         self.dvs_dataset = dvs_dataset
     
     def __len__(self):
-        return max(len(self.edge_dataset), len(self.dvs_dataset))
+        return min(len(self.edge_dataset), len(self.dvs_dataset))
     
     def __getitem__(self, index):
-        # Edge数据
-        edge_idx = index % len(self.edge_dataset)
-        edge, edge_label = self.edge_dataset[edge_idx]
+        # Edge数据（__len__=min 保证 index 不越界，无需取模循环）
+        edge, edge_label = self.edge_dataset[index]
         
         # DVS数据
-        dvs_idx = index % len(self.dvs_dataset)
-        dvs_data, dvs_label = self.dvs_dataset[dvs_idx]
+        dvs_data, dvs_label = self.dvs_dataset[index]
         
         return (edge, dvs_data), (edge_label, dvs_label)
     
@@ -1637,9 +1635,10 @@ def get_edge2dvs_caltech101(batch_size, edge_root, dvs_root,
     import random
     from torch.utils.data.sampler import SubsetRandomSampler
     
-    # 加载Edge数据集
-    edge_dataset = EdgeDataset(edge_root, edge_ratio)
-    print(f"✓ Edge训练集: {len(edge_dataset)} 样本")
+    # 加载Edge数据集(防泄露: 若 edge_root/train 存在只读 train, 不含 DVS test 的 RGB)
+    edge_train_root = os.path.join(edge_root, 'train') if os.path.isdir(os.path.join(edge_root, 'train')) else edge_root
+    edge_dataset = EdgeDataset(edge_train_root, edge_ratio)
+    print(f"✓ Edge训练集: {len(edge_dataset)} 样本 (源: {edge_train_root})")
     
     # 检查Edge数据集的标签范围
     if len(edge_dataset) > 0:
@@ -1647,18 +1646,13 @@ def get_edge2dvs_caltech101(batch_size, edge_root, dvs_root,
         print(f"  Edge数据形状示例: {sample_edge.shape}")
         print(f"  Edge标签示例: {sample_label}")
         
-        # 采样检查标签范围 - 均匀采样以覆盖所有类别
-        labels = []
-        check_samples = min(100, len(edge_dataset))
-        # 均匀采样整个数据集，而不是只采样前100个
-        step = max(1, len(edge_dataset) // check_samples)
-        for i in range(0, len(edge_dataset), step):
-            _, label = edge_dataset[i]
-            labels.append(label)
-            if len(labels) >= check_samples:
-                break
-        print(f"  Edge标签范围（采样检查）: [{min(labels)}, {max(labels)}]")
-        print(f"  Edge唯一标签数: {len(set(labels))}")
+        # 全量统计标签范围(用label_mapping,准确且不重复加载.pt)
+        if hasattr(edge_dataset, 'label_mapping') and edge_dataset.label_mapping:
+            all_labels = list(edge_dataset.label_mapping.values())
+            print(f"  Edge标签范围（全量）: [{min(all_labels)}, {max(all_labels)}]")
+            print(f"  Edge类别数: {len(all_labels)}")
+        else:
+            print(f"  Edge标签范围: 无法获取(label_mapping未构建)")
     
     # 加载DVS数据集（使用与baseline相同的方式）
     train_path = os.path.join(dvs_root, 'train')
@@ -1686,8 +1680,8 @@ def get_edge2dvs_caltech101(batch_size, edge_root, dvs_root,
         else:
             dvs_train_sampler = None
         
-        # 创建Edge2DVS训练数据集
-        train_dataset = TLEdge2DVSDataset(edge_root, dvs_train_dataset, edge_ratio)
+        # 创建Edge2DVS训练数据集(用 edge_train_root 防泄露, 只含 train 的 edge)
+        train_dataset = TLEdge2DVSDataset(edge_train_root, dvs_train_dataset, edge_ratio)
         
         # 训练数据加载器
         train_loader = DataLoaderX(
@@ -1755,8 +1749,8 @@ def get_edge2dvs_caltech101(batch_size, edge_root, dvs_root,
         dvs_test_dataset = NCaltech101Dataset(dvs_root, transform=False, img_size=img_size, 
                                               use_nda=False, use_eventrpg=False)
         
-        # 创建Edge2DVS训练数据集
-        train_dataset = TLEdge2DVSDataset(edge_root, dvs_train_dataset, edge_ratio)
+        # 创建Edge2DVS训练数据集(用 edge_train_root 防泄露, 只含 train 的 edge)
+        train_dataset = TLEdge2DVSDataset(edge_train_root, dvs_train_dataset, edge_ratio)
         
         # 训练数据加载器
         train_loader = DataLoaderX(
@@ -1785,8 +1779,11 @@ def get_edge2dvs_caltech101(batch_size, edge_root, dvs_root,
     edge_len, dvs_len = train_loader.dataset.get_len()
     print(f"  Edge样本: {edge_len}")
     print(f"  DVS样本: {dvs_len}")
+    pair_len = min(edge_len, dvs_len)
     if edge_len != dvs_len:
-        print(f"  ⚠️  样本数不一致，训练时使用循环采样（取模）策略")
+        print(f"  ℹ️  样本数不一致, 已用 min={pair_len} 对齐 (不循环, Edge多出{edge_len-pair_len}个不参与训练)")
+    else:
+        print(f"  ✓ 样本数一致: {pair_len}")
     
     return train_loader, test_loader
 

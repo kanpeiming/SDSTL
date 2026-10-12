@@ -267,7 +267,7 @@ def get_cifar10(batch_size, train_set_ratio=1.0, return_test=False):
     return train_dataloader
 
 
-def get_cifar10_DVS(batch_size, T, split_ratio=0.9, train_set_ratio=1, size=32, encode_type='TET', use_eventrpg=False, eventrpg_mix_prob=0.5):
+def get_cifar10_DVS(batch_size, T, split_ratio=0.9, train_set_ratio=1, size=32, encode_type='TET', use_eventrpg=False, eventrpg_mix_prob=0.5, data_root=None):
     """
     get the train loader and test loader of cifar10.
     :param batch_size:
@@ -300,7 +300,7 @@ def get_cifar10_DVS(batch_size, T, split_ratio=0.9, train_set_ratio=1, size=32, 
             torch.save(train_set, train_set_pth)
             torch.save(test_set, test_set_pth)
     elif encode_type == "TET":
-        path = '/home/user/Datasets/CIFAR10/CIFAR10DVS/temporal_effecient_training_0.9_mat'
+        path = data_root if data_root is not None else '/home/user/Datasets/CIFAR10/CIFAR10DVS/temporal_effecient_training_0.9_mat'
         train_path = path + '/train'
         test_path = path + '/test'
         train_set = DVSCifar10v1(root=train_path, train=True, transform=True, use_eventrpg=use_eventrpg, eventrpg_mix_prob=eventrpg_mix_prob)

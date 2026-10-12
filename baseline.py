@@ -102,6 +102,8 @@ parser.add_argument('--checkpoint', type=str, default='/home/user/kpm/kpm/result
                     help='模型 checkpoint 目录')
 parser.add_argument('--data_dir', type=str, default='/data/zhan/Event_Camera_Datasets',
                     help='数据集根目录')
+parser.add_argument('--dvs_data_root', type=str, default=None,
+                    help='DVS数据根目录(覆盖dataloader默认硬编码路径); 指向合成DVS如 cifar10_rgb2dvs')
 
 args = parser.parse_args()
 
@@ -187,7 +189,8 @@ if __name__ == "__main__":
             train_set_ratio=args.dvs_sample_ratio,
             encode_type=args.dvs_encoding_type,
             use_eventrpg=args.use_eventrpg,
-            eventrpg_mix_prob=args.eventrpg_mix_prob
+            eventrpg_mix_prob=args.eventrpg_mix_prob,
+            data_root=args.dvs_data_root
         )
     elif args.data_set == 'Caltech101':
         if args.caltech101_dvs_path is not None:
@@ -214,7 +217,8 @@ if __name__ == "__main__":
                 encode_type=args.dvs_encoding_type,
                 size=args.img_shape,
                 use_eventrpg=args.use_eventrpg,
-                eventrpg_mix_prob=args.eventrpg_mix_prob
+                eventrpg_mix_prob=args.eventrpg_mix_prob,
+                data_root=args.dvs_data_root
             )
     elif args.data_set == 'MNIST':
         train_loader, test_loader = get_n_mnist(
