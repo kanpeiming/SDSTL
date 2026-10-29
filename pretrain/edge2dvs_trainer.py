@@ -5,6 +5,7 @@ Edge to DVS Transfer Learning Trainer
 """
 
 import os
+import sys
 import time
 import torch
 from tqdm import tqdm
@@ -65,11 +66,12 @@ class AlignmentTLTrainer_Edge2DVS(TLTrainer):
             target_train_correct = 0
             target_train_correct5 = 0
             
-            pbar = tqdm(enumerate(train_loader), 
-                       total=len(train_loader),
-                       desc=f'Epoch {epoch+1}/{self.args.epoch}',
-                       ncols=120)
-            
+            show_progress = sys.stderr.isatty()
+            pbar = tqdm(enumerate(train_loader), total=len(train_loader),
+                        desc=f'Epoch [{epoch+1}/{self.args.epoch}]',
+                        dynamic_ncols=True, mininterval=1.0,
+                        leave=False, disable=not show_progress)
+
             for i, (data, labels) in pbar:
                 self.optimizer.zero_grad()
                 
@@ -139,19 +141,16 @@ class AlignmentTLTrainer_Edge2DVS(TLTrainer):
                 source_train_correct5 += source_acc5
                 target_train_correct += target_acc1
                 target_train_correct5 += target_acc5
-                
-                # 更新进度条
-                current_avg_loss = total_loss / train_num
-                current_source_acc = source_train_correct / train_num
-                current_dvs_acc = target_train_correct / train_num
-                pbar.set_postfix({
-                    'Loss': f'{current_avg_loss:.4f}',
-                    'Source_Acc': f'{current_source_acc:.3f}',
-                    'DVS_Acc': f'{current_dvs_acc:.3f}'
-                })
+
+                if show_progress:
+                    pbar.set_postfix({
+                        'loss': f'{total_loss / train_num:.4f}',
+                        'source_acc': f'{source_train_correct / train_num:.3f}',
+                        'dvs_acc': f'{target_train_correct / train_num:.3f}'
+                    }, refresh=False)
                 
                 reset_net(self.network)
-            
+
             pbar.close()
             self.scheduler.step()
             

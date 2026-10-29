@@ -211,7 +211,7 @@ class CIFAR10ClsPT(Dataset):
         return data, torch.tensor(label)
 
 
-def get_cifar10(batch_size, train_set_ratio=1.0, return_test=False):
+def get_cifar10(batch_size, train_set_ratio=1.0, return_test=False, data_root=None):
     """
     读取按类别组织的 CIFAR10 RGB .pt（与 DVS 目录形式对称）。
 
@@ -223,6 +223,7 @@ def get_cifar10(batch_size, train_set_ratio=1.0, return_test=False):
         batch_size: 批次大小
         train_set_ratio: 训练集使用比例
         return_test: True 时返回 (train_loader, test_loader)；False 仅返回 train_loader（兼容旧调用）
+        data_root: 可选 RGB 根目录，包含 train/ 和 test/；默认使用项目内置路径
     """
     # 对张量的变换（.pt 已是 (3,48,48) tensor [0,1]，不再 Resize/ToTensor）
     trans_train = transforms.Compose([
@@ -234,7 +235,8 @@ def get_cifar10(batch_size, train_set_ratio=1.0, return_test=False):
         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
     ])
 
-    train_root = os.path.join(DIR['CIFAR10RGB_CLS'], 'train')
+    rgb_root = data_root if data_root is not None else DIR['CIFAR10RGB_CLS']
+    train_root = os.path.join(rgb_root, 'train')
     if not os.path.exists(train_root):
         raise FileNotFoundError(
             f"按类别组织的 CIFAR10 RGB 数据不存在: {train_root}\n"
@@ -258,7 +260,7 @@ def get_cifar10(batch_size, train_set_ratio=1.0, return_test=False):
                                        pin_memory=True)
 
     if return_test:
-        test_root = os.path.join(DIR['CIFAR10RGB_CLS'], 'test')
+        test_root = os.path.join(rgb_root, 'test')
         test_data = CIFAR10ClsPT(test_root, transform=trans_test)
         test_dataloader = DataLoaderX(test_data, batch_size=batch_size, shuffle=False, num_workers=8, drop_last=False,
                                       pin_memory=True)

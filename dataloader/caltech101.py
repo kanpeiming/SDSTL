@@ -311,7 +311,7 @@ def get_tl_caltech101(batch_size, train_set_ratio=1.0, dvs_train_set_ratio=1.0,
     return train_loader, test_loader
 
 
-def get_caltech101(batch_size, train_set_ratio=1.0, img_size=48):
+def get_caltech101(batch_size, train_set_ratio=1.0, img_size=48, split_root=None):
     """
     获取Caltech101 RGB数据加载器
     
@@ -344,6 +344,17 @@ def get_caltech101(batch_size, train_set_ratio=1.0, img_size=48):
                                      transforms.Resize((img_size, img_size)),
                                      transforms.ToTensor(),
                                      transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]) 
+
+    if split_root is not None:
+        train_data = datasets.ImageFolder(os.path.join(split_root, 'train'), transform=trans_train)
+        test_data = datasets.ImageFolder(os.path.join(split_root, 'test'), transform=trans_test)
+        if train_data.classes != test_data.classes or any(c.lower() == 'faces' for c in train_data.classes):
+            raise ValueError('Caltech101 RGB split must have the same classes in train/test and exclude Faces')
+        train_loader = DataLoaderX(train_data, batch_size=batch_size, shuffle=True,
+                                   num_workers=8, drop_last=True, pin_memory=True)
+        test_loader = DataLoaderX(test_data, batch_size=batch_size, shuffle=False,
+                                  num_workers=8, drop_last=False, pin_memory=True)
+        return train_loader, test_loader
 
     # 使用本地准备好的数据集
     caltech101_root = os.path.dirname(DIR['Caltech101'])  # /home/user/kpm/kpm/Dataset/Caltech101/caltech101
@@ -1605,6 +1616,8 @@ class TLEdge2DVSDataset(Dataset):
         
         # DVS数据
         dvs_data, dvs_label = self.dvs_dataset[index]
+        if edge_label != dvs_label:
+            raise ValueError(f"Edge/DVS 标签不一致: index={index}, Edge={edge_label}, DVS={dvs_label}")
         
         return (edge, dvs_data), (edge_label, dvs_label)
     
@@ -1774,6 +1787,16 @@ def get_edge2dvs_caltech101(batch_size, edge_root, dvs_root,
             pin_memory=True
         )
     
+    # 固定划分的合成数据按同一原图文件名配对，避免仅凭索引或样本数假定对齐。
+    if has_split and os.path.isdir(os.path.join(edge_root, 'train')):
+        dvs_files = dvs_train_dataset.files
+        if dvs_files and any(os.path.dirname(name) for name in dvs_files):
+            edge_files = [os.path.relpath(path, edge_train_root)
+                          for path in train_dataset.edge_dataset.samples]
+            if edge_files != dvs_files[:len(edge_files)] or (
+                    edge_ratio >= 1.0 and len(edge_files) != len(dvs_files)):
+                raise ValueError("Caltech101 Edge 与 DVS train 的类别/文件名或顺序不一致，无法逐样本配对")
+
     # 显示最终配对信息
     print(f"\n最终数据集配对:")
     edge_len, dvs_len = train_loader.dataset.get_len()

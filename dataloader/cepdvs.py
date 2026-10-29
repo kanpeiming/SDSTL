@@ -4,10 +4,10 @@ CEP-DVS Dataset Loader
 CEP-DVS数据集加载器
 
 数据集结构：
-- RGB路径: /home/user/kpm/kpm/Dataset/CEP-DVS/data/img/*.jpg
-- DVS路径: /home/user/kpm/kpm/Dataset/CEP-DVS/data/MAT/img/*.mat
-- Edge路径: /home/user/kpm/kpm/Dataset/CEP-DVS/data/edge/*.pt
-- pathFile.csv: /home/user/kpm/kpm/Dataset/CEP-DVS/pathFile.csv
+- RGB路径: /home/user/Datasets/kpm-own/CEP-DVS/data/img/*.jpg
+- DVS路径: /home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/*.mat
+- Edge路径: /home/user/Datasets/kpm-own/CEP-DVS/data/edge/*.pt
+- pathFile.csv: /home/user/Datasets/kpm-own/CEP-DVS/pathFile.csv
 - 样本数量: 10000个样本
 - 类别数量: 20类 (CEP-DVS是20个类别)
 
@@ -27,11 +27,11 @@ from .dataloader_utils import DataLoaderX
 
 # ==================== CEP-DVS 配置区域 ====================
 # 请根据您的实际路径修改以下配置
-CEPDVS_ROOT = '/home/user/kpm/kpm/Dataset/CEP-DVS'  # CEP-DVS根目录（包含pathFile.csv）
-CEPDVS_RGB_ROOT = '/home/user/kpm/kpm/Dataset/CEP-DVS/data/img'  # RGB图像目录
-CEPDVS_DVS_ROOT = '/home/user/kpm/kpm/Dataset/CEP-DVS/data/MAT/img'  # DVS数据目录（原始.mat文件）
-CEPDVS_DVS_PROCESSED_ROOT = '/home/user/kpm/kpm/Dataset/CEP-DVS/data/dvs_processed'  # DVS预处理数据目录（.pt文件）
-CEPDVS_EDGE_ROOT = '/home/user/kpm/kpm/Dataset/CEP-DVS/data/edge'  # Edge数据目录
+CEPDVS_ROOT = '/home/user/Datasets/kpm-own/CEP-DVS'  # CEP-DVS根目录（包含pathFile.csv）
+CEPDVS_RGB_ROOT = os.path.join(CEPDVS_ROOT, 'data', 'img')  # RGB图像目录
+CEPDVS_DVS_ROOT = os.path.join(CEPDVS_ROOT, 'data', 'MAT', 'img')  # DVS数据目录（原始.mat文件）
+CEPDVS_DVS_PROCESSED_ROOT = os.path.join(CEPDVS_ROOT, 'data', 'dvs_processed')  # DVS预处理数据目录（.pt文件）
+CEPDVS_EDGE_ROOT = os.path.join(CEPDVS_ROOT, 'data', 'edge')  # Edge数据目录
 # =========================================================
 
 # CEP-DVS数据集路径（兼容旧代码）
@@ -329,6 +329,96 @@ class CEPDVSDVSProcessedDataset(Dataset):
         # 直接加载预处理的帧数据
         frames, _ = torch.load(file_path, weights_only=True)
         return frames, label
+
+
+class CEPDVSImagePairedDataset(Dataset):
+    """严格按数字编号配对 CEP-DVS 事件与 RGB/灰度引导图像。"""
+
+    def __init__(self, dvs_dataset, rgb_dataset, img_size, image_mode='gray_rgb'):
+        if image_mode not in ('gray_rgb', 'rgb'):
+            raise ValueError(f'不支持的 CEP-DVS 引导图像模式: {image_mode}')
+        self.image_mode = image_mode
+        self.dvs_dataset = dvs_dataset
+        self.rgb_dataset = rgb_dataset
+        self.samples = dvs_dataset.samples  # 供固定 train/val 划分记录编号
+        rgb_by_id = {}
+        for index, (path, label) in enumerate(rgb_dataset.samples):
+            sample_id = int(os.path.splitext(os.path.basename(path))[0])
+            if sample_id in rgb_by_id:
+                raise ValueError(f'CEP-DVS RGB 编号重复: {sample_id}')
+            rgb_by_id[sample_id] = (index, label)
+
+        dvs_ids = []
+        self.rgb_indices = []
+        for path, label in self.samples:
+            sample_id = int(os.path.splitext(os.path.basename(path))[0])
+            if sample_id not in rgb_by_id:
+                raise ValueError(f'CEP-DVS DVS 编号 {sample_id} 没有对应 RGB 图像')
+            rgb_index, rgb_label = rgb_by_id[sample_id]
+            if rgb_label != label:
+                raise ValueError(f'CEP-DVS 编号 {sample_id} 的 RGB/DVS 标签不一致')
+            dvs_ids.append(sample_id)
+            self.rgb_indices.append(rgb_index)
+        if len(set(dvs_ids)) != len(dvs_ids):
+            raise ValueError('CEP-DVS DVS 编号重复')
+        if set(rgb_by_id) != set(dvs_ids):
+            raise ValueError(f'CEP-DVS RGB/DVS 编号集合不一致: RGB={len(rgb_by_id)}, DVS={len(dvs_ids)}')
+
+        self.order = sorted(range(len(dvs_ids)), key=dvs_ids.__getitem__)
+        self.samples = [self.samples[index] for index in self.order]
+        self.rgb_indices = [self.rgb_indices[index] for index in self.order]
+        image_transforms = []
+        if image_mode == 'gray_rgb':
+            image_transforms.append(transforms.Grayscale(num_output_channels=1))
+        image_transforms.extend([transforms.Resize((img_size, img_size)), transforms.ToTensor()])
+        self.image_transform = transforms.Compose(image_transforms)
+        print(f'CEP-DVS {image_mode} 注意力: 严格核对并按数值编号排序 {len(self.samples)} 对 RGB/DVS 样本')
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, index):
+        dvs, label = self.dvs_dataset[self.order[index]]
+        rgb_path, _ = self.rgb_dataset.samples[self.rgb_indices[index]]
+        with Image.open(rgb_path) as image:
+            guidance = self.image_transform(image.convert('RGB'))
+        return (dvs, guidance), label
+
+
+def get_cepdvs_image_attention(batch_size, train_set_ratio=1.0, img_size=48,
+                               time_bins=10, split_ratio=0.9, num_workers=8,
+                               image_mode='gray_rgb'):
+    """按数值编号前 90% 划分，并配对相同编号的 RGB/灰度引导图像。"""
+    if os.path.exists(DIR['CEPDVS_DVS_PROCESSED']):
+        dvs_dataset = CEPDVSDVSProcessedDataset(DIR['CEPDVS_DVS_PROCESSED'])
+    else:
+        dvs_dataset = CEPDVSDVSDataset(DIR['CEPDVS_DVS'], img_size=img_size,
+                                        time_bins=time_bins)
+    rgb_dataset = CEPDVSRGBDataset(DIR['CEPDVS_RGB'])
+    full_dataset = CEPDVSImagePairedDataset(dvs_dataset, rgb_dataset, img_size, image_mode)
+    from torch.utils.data import Subset
+    split = int(len(full_dataset) * split_ratio)
+    train_count = int(split * train_set_ratio)
+    train_dataset = Subset(full_dataset, range(train_count))
+    test_dataset = Subset(full_dataset, range(split, len(full_dataset)))
+    print(f'  训练集: {len(train_dataset)}，测试集: {len(test_dataset)}（按数值编号前 90%/后 10%）')
+    train_loader = DataLoaderX(train_dataset, batch_size=batch_size, shuffle=True,
+                               num_workers=num_workers, drop_last=True, pin_memory=True)
+    test_loader = DataLoaderX(test_dataset, batch_size=batch_size, shuffle=False,
+                              num_workers=num_workers, drop_last=False, pin_memory=True)
+    return train_loader, test_loader
+
+
+def get_cepdvs_gray_attention(batch_size, train_set_ratio=1.0, img_size=48,
+                              time_bins=10, split_ratio=0.9, num_workers=8):
+    return get_cepdvs_image_attention(batch_size, train_set_ratio, img_size,
+                                      time_bins, split_ratio, num_workers, 'gray_rgb')
+
+
+def get_cepdvs_rgb_attention(batch_size, train_set_ratio=1.0, img_size=48,
+                             time_bins=10, split_ratio=0.9, num_workers=8):
+    return get_cepdvs_image_attention(batch_size, train_set_ratio, img_size,
+                                      time_bins, split_ratio, num_workers, 'rgb')
 
 
 class TLCEPDVSDataset(Dataset):
@@ -688,29 +778,38 @@ def get_cepdvs(batch_size, train_set_ratio=1.0, img_size=48):
     # 加载完整数据集
     full_dataset = CEPDVSRGBDataset(DIR['CEPDVS_RGB'], transform=rgb_trans, sample_ratio=1.0)
     
-    # 手动划分train/test (90% train, 10% test)
+    # 与 DVS 基线使用同一批按文件名排序、经 pathFile.csv 过滤后的样本。
+    # 仅比较编号，不读取 DVS 帧；编号缺失会使前 90% 的索引对应不同样本。
+    if os.path.exists(DIR['CEPDVS_DVS_PROCESSED']):
+        dvs_dataset = CEPDVSDVSProcessedDataset(DIR['CEPDVS_DVS_PROCESSED'], sample_ratio=1.0)
+    else:
+        dvs_dataset = CEPDVSDVSDataset(DIR['CEPDVS_DVS'], sample_ratio=1.0)
+
+    rgb_ids = [int(os.path.splitext(os.path.basename(path))[0]) for path, _ in full_dataset.samples]
+    dvs_ids = [int(os.path.splitext(os.path.basename(path))[0]) for path, _ in dvs_dataset.samples]
+    if rgb_ids != dvs_ids:
+        raise ValueError(
+            'CEP-DVS RGB 与 DVS 的样本编号或排序不一致，无法使用相同的前 90% 划分；'
+            f'RGB={len(rgb_ids)} 个，DVS={len(dvs_ids)} 个，'
+            f'RGB 独有={len(set(rgb_ids) - set(dvs_ids))} 个，'
+            f'DVS 独有={len(set(dvs_ids) - set(rgb_ids))} 个'
+        )
+
+    # 与 get_cepdvs_dvs 一致：排序后取前 90% 训练，后 10% 测试。
     total_size = len(full_dataset)
     train_size = int(0.9 * total_size)
-    test_size = total_size - train_size
+    from torch.utils.data import Subset
+    train_dataset = Subset(full_dataset, range(train_size))
+    test_dataset = Subset(full_dataset, range(train_size, total_size))
     
-    # 使用固定种子确保可复现
-    torch.manual_seed(1000)
-    from torch.utils.data import random_split
-    train_dataset, test_dataset = random_split(
-        full_dataset, 
-        [train_size, test_size],
-        generator=torch.Generator().manual_seed(1000)
-    )
-    
-    print(f"  训练集: {len(train_dataset)} 样本 (90%)")
-    print(f"  测试集: {len(test_dataset)} 样本 (10%)")
+    print(f"  与DVS基线按编号对齐: {total_size} 个样本")
+    print(f"  训练集: {len(train_dataset)} 样本 (排序后前90%)")
+    print(f"  测试集: {len(test_dataset)} 样本 (排序后后10%)")
     
     # 根据train_set_ratio进一步采样训练集
     if train_set_ratio < 1.0:
         sampled_size = int(len(train_dataset) * train_set_ratio)
-        train_indices = torch.randperm(len(train_dataset))[:sampled_size]
-        from torch.utils.data import Subset
-        train_dataset = Subset(train_dataset, train_indices)
+        train_dataset = Subset(train_dataset, range(sampled_size))
         print(f"  采样后训练集: {len(train_dataset)} 样本 (ratio={train_set_ratio})")
     
     # 创建数据加载器

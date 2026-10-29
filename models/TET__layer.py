@@ -215,14 +215,22 @@ class EventMidFrameAttention(nn.Module):
         
         self.softmax = nn.Softmax(dim=-1)
     
-    def forward(self, x):
+    def forward(self, x, key_source=None, return_aux_loss=False, query_source=None):
         """
         Args:
-            x: (N, T, C, H, W) 事件特征序列
+            x: (N, T, C, H, W) 目标特征序列，提供 Query 和 Value
+            key_source: 可选的同形状 RGB 特征序列，预训练时提供 Key；
+                不传时沿用事件序列自身作为 Key
+            return_aux_loss: 训练时返回空间先验的 KL 引导损失
+            query_source: 可选的 (N,1,C,H,W) 灰度图特征，替代事件中间两帧构造 Query
         Returns:
             out: (N, T, C, H, W) 增强后的事件特征
         """
         batch_size, T, C, H, W = x.shape
+        if key_source is None:
+            key_source = x
+        elif key_source.shape != x.shape:
+            raise ValueError(f"key_source shape {key_source.shape} must match target shape {x.shape}")
         
         # 取中间两帧作为稳定先验
         t1 = T // 2 - 1
@@ -234,15 +242,20 @@ class EventMidFrameAttention(nn.Module):
             t1, t2 = 0, 1
         
         # 平均中间两帧得到稳定先验 (N, 1, C, H, W)
-        stable_prior = (x[:, t1:t1+1, :, :, :] + x[:, t2:t2+1, :, :, :]) / 2.0
+        if query_source is None:
+            stable_prior = (x[:, t1:t1+1, :, :, :] + x[:, t2:t2+1, :, :, :]) / 2.0
+        else:
+            if query_source.shape != (batch_size, 1, C, H, W):
+                raise ValueError(f'query_source shape {query_source.shape} must be {(batch_size, 1, C, H, W)}')
+            stable_prior = query_source
         
         # 生成 Query（来自稳定先验）
         # (N, 1, C, H, W) -> (N, 1, C', H, W) -> (N, C', H*W)
         Q = self.query_conv(stable_prior).squeeze(1).view(batch_size, -1, H * W)
         
-        # 生成 Key 和 Value（来自完整序列）
+        # Key 来自 RGB 源分支（下游推理时来自事件自身），Value 来自目标分支
         # (N, T, C, H, W) -> (N, T, C', H, W) -> (N, T, C', H*W)
-        K = self.key_conv(x).view(batch_size, T, -1, H * W)
+        K = self.key_conv(key_source).view(batch_size, T, -1, H * W)
         V = self.value_conv(x).view(batch_size, T, C, H * W)
         
         # 计算注意力权重
@@ -257,6 +270,20 @@ class EventMidFrameAttention(nn.Module):
         # (N, T, H*W, H*W)
         attention_scores = torch.stack(attention_scores, dim=1)
         attention_weights = self.softmax(attention_scores)
+
+        if return_aux_loss:
+            # 中间帧只作为固定伪标签；空帧不产生引导梯度。
+            prior = stable_prior.squeeze(1).detach().abs().mean(dim=1).flatten(1)
+            valid = prior.sum(dim=1) > 1e-6
+            if valid.any():
+                eps = 1e-6
+                prior = prior[valid] + eps
+                prior = prior / prior.sum(dim=1, keepdim=True)
+                selected_weights = attention_weights[:, [t1, t2]] if query_source is None else attention_weights
+                attended = selected_weights.mean(dim=(1, 2))[valid]
+                aux_loss = (prior * (prior.log() - attended.clamp_min(eps).log())).sum(dim=1).mean()
+            else:
+                aux_loss = Q.sum() * 0.0
         
         # 应用注意力到 Value
         # (N, T, H*W, H*W) @ (N, T, C, H*W).transpose -> (N, T, H*W, C)
@@ -270,6 +297,8 @@ class EventMidFrameAttention(nn.Module):
         # 残差连接（可学习权重）
         out = x + self.gamma * out
         
+        if return_aux_loss:
+            return out, aux_loss
         return out
 
 

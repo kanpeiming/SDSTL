@@ -401,6 +401,7 @@ class AlignmentTLTrainer_Edge_1(TLTrainer):
             target_train_correct5 = 0
             total_encoder_tl_loss = 0
             total_feature_tl_loss = 0
+            total_attention_loss = 0
 
             # 创建进度条
             pbar = tqdm(enumerate(train_loader), total=len(train_loader),
@@ -415,7 +416,7 @@ class AlignmentTLTrainer_Edge_1(TLTrainer):
                 target_data = data.to(self.device).float()  # 目标数据，先赋值为原始数据
 
                 # 对目标数据进行边缘提取（调用模型内聚的 extract_edge 方法）
-                # extract_edge 内部完成: 可选灰度转换 → edge_extractor1(Sobel幅值) + edge_extractor2(简化Canny) → cat 2通道
+                # extract_edge 内部完成: 可选灰度转换 → 所选边缘算子 → 复制为 2 通道
                 target_data = self.network.extract_edge(target_data)
 
                 # 统一编码处理：源数据如果为3通道则添加时间维度；目标数据为2通道也需要处理
@@ -430,10 +431,16 @@ class AlignmentTLTrainer_Edge_1(TLTrainer):
                 source_data, labels = source_data.to(self.device), labels.to(self.device)
                 target_data, labels = target_data.to(self.device), labels.to(self.device)
 
-                source_outputs, target_outputs, encoder_tl_loss, feature_tl_loss = self.network(source_data.float(),
-                                                                                                target_data.float(),
-                                                                                                self.args.encoder_tl_loss_type,
-                                                                                                self.args.feature_tl_loss_type)
+                if self.args.attention_loss_weight > 0:
+                    source_outputs, target_outputs, encoder_tl_loss, feature_tl_loss, attention_loss = self.network(
+                        source_data.float(), target_data.float(),
+                        self.args.encoder_tl_loss_type, self.args.feature_tl_loss_type,
+                        return_attention_loss=True)
+                    attention_loss = attention_loss.mean()
+                else:
+                    source_outputs, target_outputs, encoder_tl_loss, feature_tl_loss = self.network(
+                        source_data.float(), target_data.float(),
+                        self.args.encoder_tl_loss_type, self.args.feature_tl_loss_type)
 
                 source_mean_out = source_outputs.mean(1)  # (N, num_classes)
                 source_clf_loss = self.criterion(source_outputs, labels)
@@ -447,12 +454,15 @@ class AlignmentTLTrainer_Edge_1(TLTrainer):
                     loss = loss + self.args.encoder_tl_lamb * encoder_tl_loss
                 if self.args.feature_tl_lamb > 0.0:
                     loss = loss + self.args.feature_tl_lamb * feature_tl_loss
+                if self.args.attention_loss_weight > 0:
+                    loss = loss + self.args.attention_loss_weight * attention_loss
+                    total_attention_loss += attention_loss.item() * labels.size(0)
 
-                source_train_loss += source_clf_loss.item()
-                target_train_loss += target_clf_loss.item()
-                total_encoder_tl_loss += encoder_tl_loss.item()
-                total_feature_tl_loss += feature_tl_loss.item()
-                total_loss += loss.item()
+                source_train_loss += source_clf_loss.item() * labels.size(0)
+                target_train_loss += target_clf_loss.item() * labels.size(0)
+                total_encoder_tl_loss += encoder_tl_loss.item() * labels.size(0)
+                total_feature_tl_loss += feature_tl_loss.item() * labels.size(0)
+                total_loss += loss.item() * labels.size(0)
 
                 loss.mean().backward()
                 self.optimizer.step()
@@ -498,18 +508,19 @@ class AlignmentTLTrainer_Edge_1(TLTrainer):
             target_train_loss = target_train_loss / train_num
             total_encoder_tl_loss = total_encoder_tl_loss / train_num
             total_feature_tl_loss = total_feature_tl_loss / train_num
+            total_attention_loss = total_attention_loss / train_num
             total_loss = total_loss / train_num
 
             print('Epoch:[{}/{}] time cost: {:.2f}min '
                   'source_clf_loss={:.5f} source_train_acc1={:.4f} source_train_acc5={:.4f} '
                   'target_clf_loss={:.5f} target_train_acc1={:.4f} target_train_acc5={:.4f} '
                   'total_loss={:.5f} total_acc1={:.4f} total_acc5={:.4f} '
-                  'encoder_tl_loss={:.5f} feature_tl_loss={:.5f}'.format(
+                  'encoder_tl_loss={:.5f} feature_tl_loss={:.5f} attention_loss={:.5f}'.format(
                 epoch+1, self.args.epochs, (time.time() - start) / 60,
                 source_train_loss, source_train_acc1, source_train_acc5,
                 target_train_loss, target_train_acc1, target_train_acc5,
                 total_loss, total_acc, total_acc5,
-                total_encoder_tl_loss, total_feature_tl_loss))
+                total_encoder_tl_loss, total_feature_tl_loss, total_attention_loss))
 
             # 可以添加基于训练指标更新 best_total_loss 或 best_train_acc 的策略，此处简单示例根据总损失判断
             if total_loss < self.best_total_loss:
@@ -529,6 +540,16 @@ class AlignmentTLTrainer_Edge_1(TLTrainer):
             self.writer.add_scalar(tag="train/loss", scalar_value=total_loss, global_step=epoch)
             self.writer.add_scalar(tag="train/encoder_tl_loss", scalar_value=total_encoder_tl_loss, global_step=epoch)
             self.writer.add_scalar(tag="train/feature_tl_loss", scalar_value=total_feature_tl_loss, global_step=epoch)
+            if self.args.attention_loss_weight > 0:
+                self.writer.add_scalar(tag="train/attention_loss", scalar_value=total_attention_loss, global_step=epoch)
+                self.writer.add_scalar(tag="train/weighted_attention_loss",
+                                       scalar_value=self.args.attention_loss_weight * total_attention_loss,
+                                       global_step=epoch)
+            if self.args.use_event_attention:
+                network = self.network.module if isinstance(self.network, nn.DataParallel) else self.network
+                for name, module in network.named_children():
+                    if name.startswith('event_attn_'):
+                        self.writer.add_scalar(f'attention/{name}_gamma', module.gamma.item(), epoch)
             self.writer.add_scalar(tag="train/lr", scalar_value=self.optimizer.param_groups[0]['lr'], global_step=epoch)
 
             # 打印内存信息

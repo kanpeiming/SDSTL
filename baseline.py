@@ -20,6 +20,9 @@ Baseline 训练入口（合并版）
 import os
 import torch
 import argparse
+import json
+import random
+from collections import defaultdict, Counter
 from tqdm import tqdm
 from tl_utils.common_utils import seed_all
 from tl_utils.trainer import BaselineTrainer
@@ -27,9 +30,62 @@ from tl_utils.loss_function import TET_loss
 from dataloader.mnist import get_n_mnist
 from dataloader.cifar import get_cifar10_DVS
 from dataloader.caltech101 import get_n_caltech101, create_caltech101_dataloaders
-from dataloader.cepdvs import get_cepdvs_dvs
+from dataloader.cepdvs import get_cepdvs_dvs, get_cepdvs_gray_attention, get_cepdvs_rgb_attention
 from models.snn_models.VGG import VGGSNN, VGGSNNwoAP
 from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data import Subset
+from dataloader.dataloader_utils import DataLoaderX
+
+
+def make_cep_train_holdout(train_loader, test_loader, val_ratio, seed, num_workers, manifest_path):
+    """只在 CEP-DVS 原训练编号内按类别划分验证集，并记录实际编号。"""
+    train_subset = train_loader.dataset
+    test_subset = test_loader.dataset
+    full_dataset = train_subset.dataset
+    if not hasattr(full_dataset, 'samples'):
+        raise ValueError('CEP-DVS 数据集缺少 samples，无法按编号记录固定划分')
+
+    by_class = defaultdict(list)
+    for index in train_subset.indices:
+        by_class[full_dataset.samples[index][1]].append(index)
+
+    rng = random.Random(seed)
+    train_indices, val_indices = [], []
+    for label, indices in sorted(by_class.items()):
+        rng.shuffle(indices)
+        count = min(max(1, round(len(indices) * val_ratio)), len(indices) - 1) if len(indices) > 1 else 0
+        val_indices.extend(indices[:count])
+        train_indices.extend(indices[count:])
+    if not val_indices:
+        raise ValueError('训练编号不足，无法划分验证集')
+
+    def ids_and_counts(indices):
+        rows = [(int(os.path.splitext(os.path.basename(full_dataset.samples[i][0]))[0]),
+                 int(full_dataset.samples[i][1])) for i in indices]
+        return sorted(rows), dict(sorted(Counter(label for _, label in rows).items()))
+
+    train_rows, train_counts = ids_and_counts(train_indices)
+    val_rows, val_counts = ids_and_counts(val_indices)
+    test_rows, test_counts = ids_and_counts(test_subset.indices)
+    train_ids = {sample_id for sample_id, _ in train_rows}
+    val_ids = {sample_id for sample_id, _ in val_rows}
+    test_ids = {sample_id for sample_id, _ in test_rows}
+    if train_ids & val_ids or train_ids & test_ids or val_ids & test_ids:
+        raise ValueError('CEP-DVS 训练、验证、测试编号重叠')
+    with open(manifest_path, 'w', encoding='utf-8') as file:
+        json.dump({'seed': seed, 'val_ratio': val_ratio,
+                   'train': train_rows, 'val': val_rows, 'test': test_rows,
+                   'class_counts': {'train': train_counts, 'val': val_counts, 'test': test_counts}},
+                  file, ensure_ascii=False, indent=2)
+    print(f"固定划分: train={len(train_indices)}, val={len(val_indices)}, test={len(test_subset)}")
+    print(f"每类数量: train={train_counts}, val={val_counts}, test={test_counts}")
+    print(f"划分清单: {manifest_path}")
+    batch_size = train_loader.batch_size
+    train_loader = DataLoaderX(Subset(full_dataset, train_indices), batch_size=batch_size,
+                               shuffle=True, num_workers=num_workers, drop_last=True, pin_memory=True)
+    val_loader = DataLoaderX(Subset(full_dataset, val_indices), batch_size=batch_size,
+                             shuffle=False, num_workers=num_workers, drop_last=False, pin_memory=True)
+    return train_loader, val_loader
 
 parser = argparse.ArgumentParser(description='Baseline: 直接在DVS数据上训练SNN（合并版）')
 # ======================== 数据集与基本训练参数 ========================
@@ -55,14 +111,16 @@ parser.add_argument('--model', type=str, default='vgg16')
 parser.add_argument('--lamb', default=1e-3, type=float, metavar='N',
                     help='adjust the norm factor to avoid outlier (default: 0.0)')
 parser.add_argument('--img_shape', type=int, default=None,
-                    help='图像尺寸（默认: CIFAR10=48, MNIST=34, Caltech101=48, CEP-DVS=48）')
+                    help='图像尺寸（默认: CIFAR10=48, MNIST=32, Caltech101=48, CEP-DVS=48）')
 parser.add_argument('--num_workers', type=int, default=8,
                     help='DataLoader 工作进程数 (Windows 遇到问题可设 0)')
 
 # ======================== 验证集策略（合并自 train_caltech101_baseline.py）========================
 parser.add_argument('--val_strategy', type=str, default='none',
-                    choices=['none', 'test_as_val'],
-                    help='验证集策略: none=不用验证集(基于train_acc保存) | test_as_val=用测试集当验证集(基于val_acc保存)')
+                    choices=['none', 'test_as_val', 'train_holdout'],
+                    help='验证集策略: none=按训练准确率选模 | train_holdout=从 CEP-DVS 训练编号划验证集 | test_as_val=测试集作验证集')
+parser.add_argument('--val_ratio', type=float, default=0.1,
+                    help='train_holdout 模式下从训练编号划出的验证比例')
 
 # ======================== Caltech101 专用参数（合并自 train_caltech101_baseline.py）========================
 parser.add_argument('--caltech101_dvs_path', type=str, default=None,
@@ -86,6 +144,12 @@ parser.add_argument('--use_event_attention', action='store_true', default=False,
                     help='启用事件中间帧引导注意力 (Event Mid-Frame Guided Attention)')
 parser.add_argument('--event_attention_reduction', type=int, default=8,
                     help='事件注意力通道压缩比 (默认 8)')
+parser.add_argument('--event_attention_layers', type=int, choices=[2, 8], default=8,
+                    help='启用注意力的位置数：前两处或全部八处（默认 8）')
+parser.add_argument('--attention_source', choices=['mid_event', 'gray_rgb', 'rgb'], default='mid_event',
+                    help='注意力 Query 来源：事件中间两帧，或按编号配对的 CEP-DVS 灰度/RGB 图')
+parser.add_argument('--attention_loss_weight', type=float, default=0.0,
+                    help='注意力 Query 空间先验 KL 损失权重；0 表示不使用')
 
 # ======================== EventRPG 数据增强（原 baseline.py）========================
 parser.add_argument('--use_eventrpg', action='store_true', default=False,
@@ -106,6 +170,16 @@ parser.add_argument('--dvs_data_root', type=str, default=None,
                     help='DVS数据根目录(覆盖dataloader默认硬编码路径); 指向合成DVS如 cifar10_rgb2dvs')
 
 args = parser.parse_args()
+if args.attention_loss_weight < 0:
+    parser.error('--attention_loss_weight 不能小于 0')
+if args.attention_loss_weight > 0 and not args.use_event_attention:
+    parser.error('--attention_loss_weight > 0 时必须启用 --use_event_attention')
+if args.attention_source in ('gray_rgb', 'rgb') and (args.data_set != 'CEP-DVS' or not args.use_event_attention):
+    parser.error('--attention_source gray_rgb/rgb 仅支持 CEP-DVS 且必须启用 --use_event_attention')
+if args.val_strategy == 'train_holdout' and args.data_set != 'CEP-DVS':
+    parser.error('--val_strategy train_holdout 当前仅支持 CEP-DVS')
+if args.val_strategy == 'train_holdout' and not 0 < args.val_ratio < 1:
+    parser.error('--val_ratio 必须在 0 与 1 之间')
 
 # 参数预设值
 device = torch.device("cuda:0")
@@ -143,7 +217,9 @@ if __name__ == "__main__":
     print(f"验证集策略: {args.val_strategy}")
     print(f"数据增强: {'EventRPG (mix_prob=' + str(args.eventrpg_mix_prob) + ')' if args.use_eventrpg else '传统增强'}")
     print(f"训练集使用比例: {args.dvs_sample_ratio}")
-    print(f"事件注意力: {'启用 (reduction=' + str(args.event_attention_reduction) + ')' if args.use_event_attention else '未启用'}")
+    print(f"事件注意力: {'启用 (' + str(args.event_attention_layers) + '处, reduction=' + str(args.event_attention_reduction) + ')' if args.use_event_attention else '未启用'}")
+    print(f"注意力 Query 来源: {args.attention_source}")
+    print(f"注意力引导损失权重: {args.attention_loss_weight}")
     if args.pretrained_path:
         print(f"预训练模型: {args.pretrained_path}")
         print(f"  跳过 dvs_input: {args.skip_dvs_input}, features: {args.skip_features}, "
@@ -152,7 +228,16 @@ if __name__ == "__main__":
 
     # 生成日志名称
     eventrpg_tag = f"_EventRPG-mix{args.eventrpg_mix_prob}" if args.use_eventrpg else ""
-    attn_tag = "_EventAttn" if args.use_event_attention else ""
+    attn_tag = f"_EventAttn{args.event_attention_layers}" if args.use_event_attention else ""
+    if args.attention_source == 'gray_rgb':
+        attn_tag += '_GrayRGBQuery'
+    elif args.attention_source == 'rgb':
+        attn_tag += '_RGBQuery'
+    if args.attention_loss_weight > 0:
+        loss_tag = {'mid_event': 'MidKL', 'gray_rgb': 'GrayPriorKL',
+                    'rgb': 'RGBPriorKL'}[args.attention_source]
+        attn_tag += f"_{loss_tag}{args.attention_loss_weight:g}"
+    val_tag = f"_TrainVal{args.val_ratio:g}" if args.val_strategy == 'train_holdout' else ""
     ft_tag = f"_FT{args.fine_tuning}" if args.fine_tuning != 'no' else ""
     log_name = (f"Baseline_{args.data_set}_"
                 f"img{args.img_shape}_"
@@ -163,6 +248,7 @@ if __name__ == "__main__":
                 f"epoch{args.epoch}"
                 f"{eventrpg_tag}"
                 f"{attn_tag}"
+                f"{val_tag}"
                 f"{ft_tag}_"
                 f"{args.experiment_name}")
 
@@ -229,7 +315,10 @@ if __name__ == "__main__":
             eventrpg_mix_prob=args.eventrpg_mix_prob
         )
     elif args.data_set == 'CEP-DVS':
-        train_loader, test_loader = get_cepdvs_dvs(
+        cep_loader = {'mid_event': get_cepdvs_dvs,
+                      'gray_rgb': get_cepdvs_gray_attention,
+                      'rgb': get_cepdvs_rgb_attention}[args.attention_source]
+        train_loader, test_loader = cep_loader(
             args.batch_size,
             train_set_ratio=args.dvs_sample_ratio,
             img_size=args.img_shape,
@@ -240,13 +329,19 @@ if __name__ == "__main__":
         raise ValueError(f"不支持的数据集: {args.data_set}")
 
     # 根据验证集策略设置 val_loader
-    if args.val_strategy == 'test_as_val':
+    if args.val_strategy == 'train_holdout':
+        train_loader, val_loader = make_cep_train_holdout(
+            train_loader, test_loader, args.val_ratio, args.seed, args.num_workers,
+            os.path.join(checkpoint_dir, f'{log_name}_split.json'))
+    elif args.val_strategy == 'test_as_val':
         val_loader = test_loader
         print(f"  验证集策略: 使用测试集作为每轮验证集选择最佳模型")
     else:
         print(f"  验证集策略: 不使用验证集，基于训练集准确率保存最佳模型")
 
     print(f"✓ 训练集样本数: {len(train_loader.dataset)} ({len(train_loader)} batches)")
+    if val_loader is not None:
+        print(f"✓ 验证集样本数: {len(val_loader.dataset)} ({len(val_loader)} batches)")
     print(f"✓ 测试集样本数: {len(test_loader.dataset)} ({len(test_loader)} batches)")
     print()
 
@@ -273,7 +368,9 @@ if __name__ == "__main__":
     model = VGGSNN(
         cls_num=cls_num, img_shape=img_shape,
         use_event_attention=args.use_event_attention,
-        event_attention_reduction=args.event_attention_reduction
+        event_attention_reduction=args.event_attention_reduction,
+        event_attention_layers=args.event_attention_layers,
+        attention_source=args.attention_source
     )
 
     if args.parallel and torch.cuda.device_count() > 1:
@@ -327,6 +424,12 @@ if __name__ == "__main__":
         model.load_state_dict(model_dict)
 
         print(f"  成功加载: {len(pretrained_dict)}/{len(model_dict)} 个参数")
+        if args.use_event_attention:
+            attention_keys = [k for k in model_dict if k.startswith('event_attn_')]
+            loaded_attention = [k for k in attention_keys if k in pretrained_dict]
+            print(f"  注意力参数加载: {len(loaded_attention)}/{len(attention_keys)}")
+            if len(loaded_attention) != len(attention_keys):
+                print("  注意: 部分注意力参数未从预训练权重加载，将随机初始化后训练")
         skipped = set(model_dict.keys()) - set(pretrained_dict.keys())
         if skipped:
             print(f"  跳过参数数量: {len(skipped)}")
@@ -357,8 +460,8 @@ if __name__ == "__main__":
     print("开始训练...\n")
     trainer = BaselineTrainer(args, device, writer, model, optimizer, criterion, scheduler, model_path)
 
-    if args.val_strategy == 'test_as_val':
-        # 用测试集当验证集，基于 val_acc 保存最佳模型
+    if args.val_strategy in ('test_as_val', 'train_holdout'):
+        # 基于所选验证集准确率保存最佳模型
         best_val_acc = trainer.train(train_loader, val_loader)
     else:
         # 不用验证集，基于 train_acc 保存最佳模型
@@ -371,14 +474,18 @@ if __name__ == "__main__":
     print("最终测试评估")
     print("=" * 60)
 
-    # 如果使用了验证集策略，加载最佳模型再测
-    if args.val_strategy == 'test_as_val' and os.path.exists(model_path):
-        print(f"加载最佳验证集模型: {model_path}")
+    # 测试前恢复本次选出的模型，避免将历史最佳训练值与末轮测试值混用。
+    if os.path.exists(model_path):
+        print(f"加载本次选出的模型: {model_path}")
         checkpoint = torch.load(model_path, map_location=device)
+        if 'epoch' in checkpoint:
+            print(f"选中轮次: {checkpoint['epoch'] + 1}")
         if 'net' in checkpoint:
             model.load_state_dict(checkpoint['net'])
         else:
             model.load_state_dict(checkpoint)
+    elif args.val_strategy == 'train_holdout':
+        raise FileNotFoundError(f"未找到验证集选出的模型: {model_path}")
 
     test_loss, test_acc = trainer.test(test_loader)
     print(f'测试损失: {test_loss:.5f}')
@@ -389,7 +496,7 @@ if __name__ == "__main__":
     # 记录最终测试结果
     writer.add_scalar(tag="final_test/accuracy", scalar_value=test_acc, global_step=0)
     writer.add_scalar(tag="final_test/loss", scalar_value=test_loss, global_step=0)
-    if args.val_strategy == 'test_as_val':
+    if args.val_strategy in ('test_as_val', 'train_holdout'):
         writer.add_scalar(tag="final_test/val_accuracy", scalar_value=best_val_acc, global_step=0)
         writer.add_scalar(tag="final_test/train_accuracy", scalar_value=trainer.best_train_acc, global_step=0)
 

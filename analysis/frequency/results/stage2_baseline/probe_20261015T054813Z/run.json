@@ -1,0 +1,41 @@
+{
+  "dataset_root": "/home/user/Datasets/kpm-own/CEP-DVS",
+  "checkpoint": "/home/user/kpm/kpm/results/SDSTL/baseline/checkpoints_CEP-DVS/SDSTL_CEP-DVS_TET_img48_T10_seed1000_dvs1_enc-TET_lr0.001_VGGSNN_namebaseline.pth",
+  "checkpoint_sha256": "dfcce4f79e0a9f8f7eabb38249adc1abdb271653c93fea6384f822ce45b9740c",
+  "reference_run": "/home/user/kpm/kpm/results/SDSTL/frequency/stage1_cepdvs/full_20261014T102251Z/run.json",
+  "reference_run_sha256": "f9b5926d70c3b25f8212e4c422a0979bc23eda74ac7668ebf2964fcfd95f41f8",
+  "source_sha256": "2fbfde13331e4cb4d025a33aa78a8c1aef4ff8b0d2cca25f33872b3d76bece4f",
+  "selected_ids": [
+    1988,
+    1810,
+    5,
+    1040,
+    3059,
+    179,
+    220,
+    1233,
+    3610,
+    49,
+    4261,
+    3025,
+    2117,
+    1527,
+    600,
+    2555,
+    765,
+    3645,
+    1675,
+    1735
+  ],
+  "model": "VGGSNN",
+  "T": 10,
+  "device": "cuda:0",
+  "torch": "2.4.1+cu121",
+  "band_edges_normalized_radius": [
+    0.15,
+    0.35
+  ],
+  "frequency_measure": "per-sample pooled channel/time centered FFT energy",
+  "max_hook_logit_difference": 0.0,
+  "membrane_spike_mismatches": 0
+}

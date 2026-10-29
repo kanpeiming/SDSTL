@@ -58,7 +58,7 @@ ESVAE 项目 数据集路径与数据格式说明
             (仅当未传 --caltech101_dvs_path 时走此分支; 默认不传)
 加载函数  : dataloader/caltech101.py:558  get_n_caltech101(...), TET 分支 578-583
 数据集类  : NCaltech101  (caltech101.py:607-)
-绝对路径  : /home/user/kpm/kpm/Dataset/Caltech101/n-caltech101
+绝对路径  : /home/user/Datasets/kpm-own/Caltech101/n-caltech101
 目录结构  : {上述路径}/train/{index}.pt
             {上述路径}/test/{index}.pt
             文件名形如 0.pt, 1.pt, ... (无 _np 后缀, 此前已修)
@@ -75,7 +75,7 @@ ESVAE 项目 数据集路径与数据格式说明
             633-638(__getitem__ permute 修正) 607(NCaltech101类)
 注意      : caltech101.py:18 的 DIR['Caltech101DVS'] 指向
             NCALTECH101/NCALTECH101/Caltech101, 但 TET 分支硬编码 579 行
-            /home/user/kpm/kpm/Dataset/Caltech101/n-caltech101, 不读 DIR。
+            /home/user/Datasets/kpm-own/Caltech101/n-caltech101, 不读 DIR。
             维度顺序与 CIFAR10-DVS 的 (T,C,H,W) 不同, 已在 __getitem__ 修正。
 
 --------------------------------------------------------------------------------
@@ -87,9 +87,9 @@ ESVAE 项目 数据集路径与数据格式说明
 数据集类  : CEPDVSDVSProcessedDataset  (优先, cepdvs.py:287-331)
             CEPDVSDVSDataset             (回退, cepdvs.py:220-256, 读原始 .mat)
 绝对路径  :
-  (a) 预处理 .pt(优先): /home/user/kpm/kpm/Dataset/CEP-DVS/data/dvs_processed/*.pt
+  (a) 预处理 .pt(优先): /home/user/Datasets/kpm-own/CEP-DVS/data/dvs_processed/*.pt
                        (DIR['CEPDVS_DVS_PROCESSED'], cepdvs.py:33)
-  (b) 原始 .mat(回退) : /home/user/kpm/kpm/Dataset/CEP-DVS/data/MAT/img/*.mat
+  (b) 原始 .mat(回退) : /home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/*.mat
                        (DIR['CEPDVS_DVS'], cepdvs.py:32)
 目录结构  : 平铺, 文件名形如 01891.pt / 01891.mat (前缀补零到 5 位)
 单样本格式:
@@ -98,7 +98,7 @@ ESVAE 项目 数据集路径与数据格式说明
             frames 形状 (time_bins, 2, img_size, img_size) = (10, 2, 48, 48)
             注意 .pt 内第二个元素被丢弃, label 实际取自 pathFile.csv
   (b) 原始 .mat : scipy.io.loadmat 读取, 再按时分箱重组为 (T,2,H,W)
-标签来源  : pathFile.csv  (/home/user/kpm/kpm/Dataset/CEP-DVS/pathFile.csv)
+标签来源  : pathFile.csv  (/home/user/Datasets/kpm-own/CEP-DVS/pathFile.csv)
             从文件名提取数字索引(如 01891.pt -> 1891), 查 csv 得 20 类标签
             (CEPDVS_CLASSES 映射, cepdvs.py:47-68)
 划分方式  : 不分 train/test 目录; get_cepdvs_dvs 内按 split_ratio=0.9 切
@@ -119,7 +119,7 @@ ESVAE 项目 数据集路径与数据格式说明
 入口调用  : train_rgb2edge.py:217-219  -> get_cifar10(batch_size, RGB_sample_ratio)
 加载函数  : dataloader/cifar.py:213  get_cifar10(...)
 数据集类  : CIFAR10ClsPT  (cifar.py 约 175-202)
-绝对路径  : /home/user/kpm/kpm/Dataset/CIFAR10/cifar10_rgb
+绝对路径  : /home/user/Datasets/kpm-own/CIFAR10/cifar10_rgb
             (DIR['CIFAR10RGB_CLS'], cifar.py:37)
 目录结构  : {上述路径}/train/{类别}/*.pt
             {上述路径}/test/{类别}/*.pt
@@ -130,7 +130,7 @@ ESVAE 项目 数据集路径与数据格式说明
 划分方式  : train/test 目录; 但预训练阶段 test_dataset=None,
             即只用 train 训练, 不测 test(train_rgb2edge.py:221)
 生成方式  : 由 data_process/preprocess_cifar10_rgb2cls.py 生成
-            (读 torchvision CIFAR10 /home/user/kpm/kpm/Dataset/CIFAR10/cifar10)
+            (读 torchvision CIFAR10 /home/user/Datasets/kpm-own/CIFAR10/cifar10)
 源码位置  : cifar.py:37(DIR) 175-202(CIFAR10ClsPT) 213-268(get_cifar10)
 
 --------------------------------------------------------------------------------
@@ -139,7 +139,7 @@ ESVAE 项目 数据集路径与数据格式说明
 入口调用  : train_rgb2edge.py:178-183  -> get_caltech101(batch_size, train_set_ratio, img_size)
 加载函数  : dataloader/caltech101.py:314  get_caltech101(...)
 数据集类  : torchvision.datasets.ImageFolder  (caltech101.py:376)
-绝对路径  : /home/user/kpm/kpm/Dataset/Caltech101/caltech101/101_ObjectCategories
+绝对路径  : /home/user/Datasets/kpm-own/Caltech101/caltech101/101_ObjectCategories
             (DIR['Caltech101'], caltech101.py:17)
 目录结构  : {上述路径}/{类别名}/*.jpg    (ImageFolder 风格, 平铺类别子目录)
 单样本格式: .jpg 图像, 经 transforms: Resize(48,48) -> ToTensor -> Normalize
@@ -158,12 +158,12 @@ ESVAE 项目 数据集路径与数据格式说明
 入口调用  : train_rgb2edge.py:205-210  -> get_cepdvs(batch_size, train_set_ratio, img_size)
 加载函数  : dataloader/cepdvs.py:666  get_cepdvs(...)
 数据集类  : CEPDVSRGBDataset  (cepdvs.py:168-217)
-绝对路径  : /home/user/kpm/kpm/Dataset/CEP-DVS/data/img/*.jpg
+绝对路径  : /home/user/Datasets/kpm-own/CEP-DVS/data/img/*.jpg
             (DIR['CEPDVS_RGB'], cepdvs.py:31)
 目录结构  : 平铺, 文件名形如 01891.jpg (前缀补零到 5 位)
 单样本格式: .jpg 图像, Image.open().convert('RGB') -> transforms
             -> 张量 (3, img_size, img_size) = (3, 48, 48)
-标签来源  : pathFile.csv  (/home/user/kpm/kpm/Dataset/CEP-DVS/pathFile.csv)
+标签来源  : pathFile.csv  (/home/user/Datasets/kpm-own/CEP-DVS/pathFile.csv)
             从文件名提取数字索引(如 01891.jpg -> 1891) 查 csv 得 20 类标签
 划分方式  : 无独立 test 目录; get_cepdvs 内按 90/10 划分
 样本数量  : 10000 张
@@ -175,18 +175,18 @@ ESVAE 项目 数据集路径与数据格式说明
 ================================================================================
 [基线 DVS]
   CIFAR10-DVS    /home/user/Datasets/CIFAR10/CIFAR10DVS/temporal_effecient_training_0.9_mat/{train,test}/{cls}/*.pt
-  N-Caltech101   /home/user/kpm/kpm/Dataset/Caltech101/n-caltech101/{train,test}/{index}.pt
-  CEP-DVS        /home/user/kpm/kpm/Dataset/CEP-DVS/data/dvs_processed/*.pt  (优先)
-                 /home/user/kpm/kpm/Dataset/CEP-DVS/data/MAT/img/*.mat       (回退)
+  N-Caltech101   /home/user/Datasets/kpm-own/Caltech101/n-caltech101/{train,test}/{index}.pt
+  CEP-DVS        /home/user/Datasets/kpm-own/CEP-DVS/data/dvs_processed/*.pt  (优先)
+                 /home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/*.mat       (回退)
 
 [预训练 RGB]
-  CIFAR10 RGB    /home/user/kpm/kpm/Dataset/CIFAR10/cifar10_rgb/{train,test}/{cls}/*.pt
-  Caltech101 RGB /home/user/kpm/kpm/Dataset/Caltech101/caltech101/101_ObjectCategories/{cls}/*.jpg
-  CEP-DVS RGB    /home/user/kpm/kpm/Dataset/CEP-DVS/data/img/*.jpg
+  CIFAR10 RGB    /home/user/Datasets/kpm-own/CIFAR10/cifar10_rgb/{train,test}/{cls}/*.pt
+  Caltech101 RGB /home/user/Datasets/kpm-own/Caltech101/caltech101/101_ObjectCategories/{cls}/*.jpg
+  CEP-DVS RGB    /home/user/Datasets/kpm-own/CEP-DVS/data/img/*.jpg
 
 [公共]
-  CEP-DVS 标签表 /home/user/kpm/kpm/Dataset/CEP-DVS/pathFile.csv
-  CEP-DVS 根目录 /home/user/kpm/kpm/Dataset/CEP-DVS
+  CEP-DVS 标签表 /home/user/Datasets/kpm-own/CEP-DVS/pathFile.csv
+  CEP-DVS 根目录 /home/user/Datasets/kpm-own/CEP-DVS
 
 
 ================================================================================

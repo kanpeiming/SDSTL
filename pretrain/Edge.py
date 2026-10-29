@@ -79,6 +79,29 @@ class SobelEdgeExtractionModule(nn.Module):
         return edges
 
 
+class LaplacianEdgeExtractionModule(nn.Module):
+    """灰度图上的四邻域 Laplacian；返回 [N, 1, H, W] 的非负边缘强度。"""
+
+    def __init__(self, device=None, in_channels=3):
+        super().__init__()
+        if in_channels not in (1, 3):
+            raise ValueError("Laplacian 仅支持 1 或 3 通道输入")
+        self.in_channels = in_channels
+        self.register_buffer("kernel", torch.tensor(
+            [[0., 1., 0.], [1., -4., 1.], [0., 1., 0.]],
+            dtype=torch.float32).view(1, 1, 3, 3))
+
+    def forward(self, x):
+        if x.dim() != 4 or x.size(1) != self.in_channels:
+            raise ValueError(f"Expected [N, {self.in_channels}, H, W] input, got {tuple(x.shape)}")
+        if self.in_channels == 3:
+            gray = (x * x.new_tensor([0.299, 0.587, 0.114]).view(1, 3, 1, 1)).sum(1, keepdim=True)
+        else:
+            gray = x
+        # 除以核绝对系数和 8：输入在 [0, 1] 时输出也在 [0, 1]。
+        return F.conv2d(gray, self.kernel.to(dtype=x.dtype), padding=1).abs() / 8.0
+
+
 # 使用Canny算法进行边缘提取
 class CannyEdgeDetectionModule(nn.Module):
     def __init__(self, device, in_channels=3, low_threshold=0.3, high_threshold=0.8):

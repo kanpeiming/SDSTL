@@ -10,8 +10,7 @@ RGB->Edge 预训练入口（合并版）
   - 支持 4 个数据集: CIFAR10, MNIST, Caltech101, CEP-DVS
   - 兼容 --epoch 和 --epochs 两个参数名（train.py 用 --epochs，train_rgb2edge.py 用 --epoch）
   - 支持 TET Loss 和 TRT (Temporal Regularization Training) Loss
-  - 使用双Sobel核边缘提取器(SobelEdgeExtractionModule + CannyEdgeDetectionModule)生成 2 通道边缘图
-    注: 两个提取器核心梯度算子均为Sobel核，extractor1输出连续梯度幅值，extractor2为简化Canny(高斯模糊→Sobel梯度→硬阈值二值化)
+  - 使用 Sobel、简化 Canny 或 Laplacian 生成单通道响应，再复制为 2 通道
   - 产出 rgb_edge_pretrained_best.pth 供后续 train_edge2dvs.py 使用
 """
 
@@ -70,10 +69,19 @@ parser.add_argument('--feature_tl_lamb', default=0.1, type=float,
 parser.add_argument('--img_shape', type=int, default=48, help='图像尺寸')
 parser.add_argument('--use_woap', default=False, type=bool,
                     help='是否使用 VGGSNNwoAP (无 AvgPool 版)')
+parser.add_argument('--use_event_attention', action='store_true', default=False,
+                    help='启用跨模态注意力预训练：Edge 作 Q/V，RGB 作 K')
+parser.add_argument('--event_attention_reduction', type=int, default=8,
+                    help='注意力通道压缩比，需与下游实验一致')
+parser.add_argument('--event_attention_layers', type=int, choices=[2, 8], default=2,
+                    help='注意力位置数：前两处或全部八处（默认 2）')
+parser.add_argument('--attention_loss_weight', type=float, default=None,
+                    help='中间帧空间先验 KL 损失权重；启用注意力时默认 0.01，0 表示不使用')
 parser.add_argument('--rgb_to_gray', action='store_true', default=False,
                     help='是否在边缘提取前将 RGB 转灰度')
 parser.add_argument('--edge_method', type=str, default='Sobel',
-                    help='边缘提取方法标记（用于日志名称）')
+                    choices=['Sobel', 'Canny', 'Laplacian'],
+                    help='实际使用的边缘提取方式')
 
 # ======================== TRT Loss 参数（合并自 train.py）========================
 parser.add_argument('--use_trt', action='store_true', default=False,
@@ -88,8 +96,14 @@ parser.add_argument('--trt_eta', type=float, default=0.05,
                     help='TRT eta η (MSE loss weight, 默认 0.05)')
 
 # ======================== RGB 采样参数（合并自 train.py）========================
+parser.add_argument('--caltech101_rgb_split_root', type=str, default=None,
+                    help='Caltech101 RGB train/test root shared with DVS synthesis')
+parser.add_argument('--cifar10_rgb_root', type=str, default=None,
+                    help='CIFAR10 RGB 根目录，包含 train/test；预训练只读取 train')
 parser.add_argument('--RGB_sample_ratio', type=float, default=1.0,
                     help='RGB 训练集使用比例')
+parser.add_argument('--experiment_name', type=str, default='',
+                    help='可选实验名，追加到日志名和权重目录名；留空时保持原命名')
 
 # ======================== 路径参数 ========================
 parser.add_argument('--log_dir', type=str, default='/home/user/kpm/kpm/results/SDSTL/pretrain/log_dir',
@@ -100,6 +114,21 @@ parser.add_argument('--GPU_id', type=int, default=0, help='GPU ID')
 parser.add_argument('--num_classes', type=int, default=None, help='类别数（默认自动检测）')
 
 args = parser.parse_args()
+
+if args.attention_loss_weight is None:
+    args.attention_loss_weight = 0.01 if args.use_event_attention else 0.0
+if not 1 <= args.event_attention_reduction <= 64:
+    parser.error('--event_attention_reduction 必须在 1 到 64 之间')
+if args.attention_loss_weight < 0:
+    parser.error('--attention_loss_weight 不能小于 0')
+if args.attention_loss_weight > 0 and not args.use_event_attention:
+    parser.error('--attention_loss_weight > 0 时必须启用 --use_event_attention')
+
+args.experiment_name = args.experiment_name.strip()
+if args.experiment_name and (args.experiment_name in {'.', '..'} or
+                             any(ch in args.experiment_name for ch in '/\\') or
+                             any(ord(ch) < 32 for ch in args.experiment_name)):
+    parser.error('--experiment_name 不能包含路径分隔符或控制字符')
 
 # 兼容 --epochs 和 --epoch（--epochs 优先，回退到 --epoch）
 if args.epochs is not None:
@@ -133,10 +162,16 @@ log_name = (
     f"seed{args.seed}_"
     f"RGB{args.RGB_sample_ratio}_"
     f"{gray_tag}"
-    f"TWoSobelEdge_"
+    f"{'TWoSobelEdge' if args.edge_method == 'Sobel' else args.edge_method + 'Edge'}_"
     f"{loss_tag}_"
     f"img_shape{args.img_shape}"
 )
+if args.experiment_name:
+    log_name += f"_{args.experiment_name}"
+if args.use_event_attention:
+    log_name += f"_CrossModalAttn{args.event_attention_layers}R{args.event_attention_reduction}"
+    if args.attention_loss_weight > 0:
+        log_name += f"_MidKL{args.attention_loss_weight:g}"
 
 # 日志目录设置
 log_dir = os.path.join(
@@ -165,7 +200,7 @@ if __name__ == "__main__":
     common_utils.seed_all(args.seed)
 
     print("\n" + "=" * 80)
-    print(f"RGB->Edge 预训练 (双Sobel核边缘提取: Sobel幅值 + 简化Canny) - {args.data_set}")
+    print(f"RGB->Edge 预训练 ({args.edge_method}) - {args.data_set}")
     print(f"损失函数: {'TRT' if args.use_trt else 'TET'}")
     print("=" * 80)
 
@@ -176,23 +211,27 @@ if __name__ == "__main__":
     print(f"图像尺寸设置: {args.img_shape}×{args.img_shape}")
 
     if args.data_set == 'Caltech101':
-        rgb_full_loader, _ = get_caltech101(
+        rgb_full_loader, rgb_test_loader = get_caltech101(
             args.batch_size,
             train_set_ratio=1.0,
-            img_size=args.img_shape
+            img_size=args.img_shape,
+            split_root=args.caltech101_rgb_split_root
         )
-        # 手动划分 train/test (90% train, 10% test) 防止数据泄露
-        print(f"\n手动划分数据集（避免数据泄露）:")
-        full_dataset = rgb_full_loader.dataset
-        dataset_size = len(full_dataset)
-        train_size = int(0.9 * dataset_size)
-        test_size = dataset_size - train_size
-        torch.manual_seed(args.seed)
-        train_dataset, test_dataset = torch.utils.data.random_split(
-            full_dataset,
-            [train_size, test_size],
-            generator=torch.Generator().manual_seed(args.seed)
-        )
+        print(f"\nCaltech101 RGB 数据划分:")
+        if args.caltech101_rgb_split_root:
+            train_dataset = rgb_full_loader.dataset
+            test_dataset = rgb_test_loader.dataset
+        else:
+            full_dataset = rgb_full_loader.dataset
+            dataset_size = len(full_dataset)
+            train_size = int(0.9 * dataset_size)
+            test_size = dataset_size - train_size
+            torch.manual_seed(args.seed)
+            train_dataset, test_dataset = torch.utils.data.random_split(
+                full_dataset,
+                [train_size, test_size],
+                generator=torch.Generator().manual_seed(args.seed)
+            )
         print(f"  训练集: {len(train_dataset)} 样本 (90%)")
         print(f"  测试集: {len(test_dataset)} 样本 (10%)")
 
@@ -216,11 +255,15 @@ if __name__ == "__main__":
 
     elif args.data_set == 'CIFAR10':
         # 来自 train.py：只使用训练集进行预训练
-        train_loader = get_cifar10(args.batch_size, args.RGB_sample_ratio)
+        train_loader = get_cifar10(args.batch_size, args.RGB_sample_ratio,
+                                  data_root=args.cifar10_rgb_root)
         train_dataset = train_loader.dataset
         test_dataset = None  # CIFAR10 预训练阶段不划分 test
         print(f"训练集RGB数量: {len(train_dataset)} 样本")
-        print(f"数据来源: CIFAR10训练集")
+        if args.cifar10_rgb_root:
+            print(f"数据来源: {os.path.join(args.cifar10_rgb_root, 'train')}")
+        else:
+            print("数据来源: 默认 CIFAR10 RGB 训练集")
         print(f"注意: 预训练阶段只使用训练集，测试在后续阶段进行")
 
     elif args.data_set == 'MNIST':
@@ -272,16 +315,27 @@ if __name__ == "__main__":
     # ============================================================================
     if args.use_woap:
         model = VGGSNNwoAP(cls_num=args.num_classes, img_shape=args.img_shape,
-                          use_edge_extractor=True, rgb_to_gray=args.rgb_to_gray)
+                          use_event_attention=args.use_event_attention,
+                          event_attention_reduction=args.event_attention_reduction,
+                          event_attention_layers=args.event_attention_layers,
+                          use_edge_extractor=True, rgb_to_gray=args.rgb_to_gray,
+                          edge_method=args.edge_method)
         print("使用 VGGSNNwoAP 模型 (without Average Pooling)")
         print(f"  架构: stride=2卷积替代AvgPool2d")
     else:
         model = VGGSNN(cls_num=args.num_classes, img_shape=args.img_shape, device=device,
-                      use_edge_extractor=True, rgb_to_gray=args.rgb_to_gray)
+                      use_event_attention=args.use_event_attention,
+                      event_attention_reduction=args.event_attention_reduction,
+                      event_attention_layers=args.event_attention_layers,
+                      use_edge_extractor=True, rgb_to_gray=args.rgb_to_gray,
+                      edge_method=args.edge_method)
         print("使用标准 VGGSNN 模型 (with Average Pooling)")
         print(f"  架构: AvgPool2d下采样")
     print(f"  图像尺寸: {args.img_shape}×{args.img_shape}")
-    print(f"  输入通道: RGB=3通道, Edge=2通道(Sobel幅值 + 简化Canny二值)")
+    print(f"  输入通道: RGB=3通道, Edge=2通道({args.edge_method}响应复制两份)")
+    if args.use_event_attention:
+        print(f"  跨模态注意力: 前{args.event_attention_layers}处，Edge 中间两帧作 Q、Edge 全序列作 V、RGB 全序列作 K；reduction={args.event_attention_reduction}")
+        print(f"  中间帧引导损失权重: {args.attention_loss_weight}")
 
     # 边缘提取器已内聚到模型类（use_edge_extractor=True 时自动实例化）
     if args.rgb_to_gray:
@@ -292,15 +346,12 @@ if __name__ == "__main__":
     else:
         print("✓ RGB到灰度转换: 未启用（直接使用RGB图像）")
 
-    print("\n✓ 模型已内聚双边缘提取器（均基于 Sobel 核）:")
-    print("  - edge_extractor1: SobelEdgeExtractionModule")
-    print("      算子: Sobel_x + Sobel_y → sqrt(gx²+gy²) → 跨通道平均")
-    print("      输出: 1通道连续梯度幅值")
-    print("  - edge_extractor2: CannyEdgeDetectionModule (简化版)")
-    print("      流程: RGB→灰度 → 高斯模糊(5×5) → Sobel梯度 → NMS(空操作) → 硬阈值二值化")
-    print("      注: 核心梯度算子与 extractor1 相同(Sobel核)，NMS 未实际抑制")
-    print("      输出: 1通道二值边缘")
-    print("  - 叠加后: 2通道边缘图 (Sobel幅值 + Canny二值)，近似DVS双通道特性")
+    print(f"\n✓ 模型已内聚 {args.edge_method} 边缘提取器:")
+    if args.edge_method == 'Canny':
+        print("  - 使用现有简化实现：NMS 为空操作，仅按高阈值二值化")
+    elif args.edge_method == 'Laplacian':
+        print("  - 四邻域 Laplacian 灰度响应，取绝对值后除以 8")
+    print("  - 单通道边缘响应复制为 2 通道；不表示 DVS 的 ON/OFF 极性")
     print("  - 调用方式: model.extract_edge(rgb_data) → (N, 2, H, W)")
 
     if args.parallel and torch.cuda.device_count() > 1:
@@ -339,7 +390,7 @@ if __name__ == "__main__":
     print(f"  特征迁移损失: {args.feature_tl_lamb} × {args.feature_tl_loss_type}")
     print(f"  编码器类型: {args.encoder_type}")
     print(f"  RGB转灰度: {'启用' if args.rgb_to_gray else '未启用'}")
-    print(f"  边缘提取: 双Sobel核提取器 (SobelEdgeExtractionModule梯度幅值 + CannyEdgeDetectionModule简化Canny二值, 均使用Sobel核)")
+    print(f"  边缘提取: {args.edge_method}")
 
     # ============================================================================
     # 选择损失函数：TRT 或 TET（合并自 train.py）
@@ -373,6 +424,11 @@ if __name__ == "__main__":
 
     best_train_acc, best_train_loss = trainer.train(rgb_train_loader)
 
+    # 使用训练总损失最低的权重做评估与下游迁移，避免 *_best.pth 实际是末轮权重。
+    best_checkpoint = torch.load(trainer.best_model_path, map_location=device, weights_only=True)
+    model.load_state_dict(best_checkpoint['model_state_dict'])
+    print(f"已恢复最佳预训练权重: epoch {best_checkpoint['epoch']}，总损失 {best_checkpoint['loss']:.5f}")
+
     # 预训练测试（如果有测试集）
     if rgb_test_loader is not None:
         test_loss, test_acc1, test_acc5 = trainer.test(rgb_test_loader)
@@ -387,8 +443,9 @@ if __name__ == "__main__":
     # 保存 RGB->Edge 预训练模型
     pretrained_path = os.path.join(model_path, "rgb_edge_pretrained_best.pth")
     torch.save({
+        'epoch': best_checkpoint['epoch'],
         'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
+        'optimizer_state_dict': best_checkpoint['optimizer_state_dict'],
         'best_train_acc': best_train_acc,
         'best_train_loss': best_train_loss,
         'test_acc1': test_acc1,

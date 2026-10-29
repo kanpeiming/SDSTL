@@ -1,0 +1,179 @@
+{
+  "dataset": "CEP-DVS",
+  "split": "train",
+  "seed": 1000,
+  "per_class": 1,
+  "n_samples": 20,
+  "size": 48,
+  "band_edges_normalized_radius": [
+    0.15,
+    0.35
+  ],
+  "fft_normalization": "ortho",
+  "dc_removed_for_band_energy": true,
+  "radial_units": "cycles/pixel divided by diagonal Nyquist radius",
+  "rgb_normalize_mean": [
+    0.485,
+    0.456,
+    0.406
+  ],
+  "rgb_normalize_std": [
+    0.229,
+    0.224,
+    0.225
+  ],
+  "edge": "same Sobel gradient magnitude repeated in two channels",
+  "dvs_channel_order": "channel 0 negative, channel 1 positive (verify upstream dataset)",
+  "raw_event_path_supplied": true,
+  "python": "3.10.16",
+  "numpy": "1.23.5",
+  "torch": "2.4.1+cu121",
+  "source": {
+    "stage1_cepdvs.py_sha256": "67dfb33e91933ae4617bca133a555f711abad6b7a5efd8c19928052a46653459",
+    "spectrum.py_sha256": "507d5fe316874f16e197a9dcee1ddfd4309b8b5ed18f91bb116e164ea3e7988b",
+    "git_commit": "21e246da6d1d82e80b2fdcc135f1b4091827a313",
+    "git_status": "M \"Docs/point1/\\346\\225\\260\\346\\215\\256\\351\\233\\206\\350\\267\\257\\345\\276\\204\\344\\270\\216\\346\\240\\274\\345\\274\\217\\350\\257\\264\\346\\230\\216.txt\"\n M baseline.py\n?? analysis/frequency/"
+  },
+  "manifest": [
+    {
+      "sample_id": 1988,
+      "label": 0,
+      "rgb": "/home/user/Datasets/kpm-own/CEP-DVS/data/img/01988.jpg",
+      "dvs": "/home/user/Datasets/kpm-own/CEP-DVS/data/dvs_processed/01988.pt",
+      "raw_events": "/home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/01988.mat"
+    },
+    {
+      "sample_id": 4762,
+      "label": 1,
+      "rgb": "/home/user/Datasets/kpm-own/CEP-DVS/data/img/04762.jpg",
+      "dvs": "/home/user/Datasets/kpm-own/CEP-DVS/data/dvs_processed/04762.pt",
+      "raw_events": "/home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/04762.mat"
+    },
+    {
+      "sample_id": 7814,
+      "label": 2,
+      "rgb": "/home/user/Datasets/kpm-own/CEP-DVS/data/img/07814.jpg",
+      "dvs": "/home/user/Datasets/kpm-own/CEP-DVS/data/dvs_processed/07814.pt",
+      "raw_events": "/home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/07814.mat"
+    },
+    {
+      "sample_id": 5411,
+      "label": 3,
+      "rgb": "/home/user/Datasets/kpm-own/CEP-DVS/data/img/05411.jpg",
+      "dvs": "/home/user/Datasets/kpm-own/CEP-DVS/data/dvs_processed/05411.pt",
+      "raw_events": "/home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/05411.mat"
+    },
+    {
+      "sample_id": 7425,
+      "label": 4,
+      "rgb": "/home/user/Datasets/kpm-own/CEP-DVS/data/img/07425.jpg",
+      "dvs": "/home/user/Datasets/kpm-own/CEP-DVS/data/dvs_processed/07425.pt",
+      "raw_events": "/home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/07425.mat"
+    },
+    {
+      "sample_id": 4704,
+      "label": 5,
+      "rgb": "/home/user/Datasets/kpm-own/CEP-DVS/data/img/04704.jpg",
+      "dvs": "/home/user/Datasets/kpm-own/CEP-DVS/data/dvs_processed/04704.pt",
+      "raw_events": "/home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/04704.mat"
+    },
+    {
+      "sample_id": 1945,
+      "label": 6,
+      "rgb": "/home/user/Datasets/kpm-own/CEP-DVS/data/img/01945.jpg",
+      "dvs": "/home/user/Datasets/kpm-own/CEP-DVS/data/dvs_processed/01945.pt",
+      "raw_events": "/home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/01945.mat"
+    },
+    {
+      "sample_id": 1877,
+      "label": 7,
+      "rgb": "/home/user/Datasets/kpm-own/CEP-DVS/data/img/01877.jpg",
+      "dvs": "/home/user/Datasets/kpm-own/CEP-DVS/data/dvs_processed/01877.pt",
+      "raw_events": "/home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/01877.mat"
+    },
+    {
+      "sample_id": 4378,
+      "label": 8,
+      "rgb": "/home/user/Datasets/kpm-own/CEP-DVS/data/img/04378.jpg",
+      "dvs": "/home/user/Datasets/kpm-own/CEP-DVS/data/dvs_processed/04378.pt",
+      "raw_events": "/home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/04378.mat"
+    },
+    {
+      "sample_id": 4521,
+      "label": 9,
+      "rgb": "/home/user/Datasets/kpm-own/CEP-DVS/data/img/04521.jpg",
+      "dvs": "/home/user/Datasets/kpm-own/CEP-DVS/data/dvs_processed/04521.pt",
+      "raw_events": "/home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/04521.mat"
+    },
+    {
+      "sample_id": 2709,
+      "label": 10,
+      "rgb": "/home/user/Datasets/kpm-own/CEP-DVS/data/img/02709.jpg",
+      "dvs": "/home/user/Datasets/kpm-own/CEP-DVS/data/dvs_processed/02709.pt",
+      "raw_events": "/home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/02709.mat"
+    },
+    {
+      "sample_id": 1573,
+      "label": 11,
+      "rgb": "/home/user/Datasets/kpm-own/CEP-DVS/data/img/01573.jpg",
+      "dvs": "/home/user/Datasets/kpm-own/CEP-DVS/data/dvs_processed/01573.pt",
+      "raw_events": "/home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/01573.mat"
+    },
+    {
+      "sample_id": 4649,
+      "label": 12,
+      "rgb": "/home/user/Datasets/kpm-own/CEP-DVS/data/img/04649.jpg",
+      "dvs": "/home/user/Datasets/kpm-own/CEP-DVS/data/dvs_processed/04649.pt",
+      "raw_events": "/home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/04649.mat"
+    },
+    {
+      "sample_id": 2398,
+      "label": 13,
+      "rgb": "/home/user/Datasets/kpm-own/CEP-DVS/data/img/02398.jpg",
+      "dvs": "/home/user/Datasets/kpm-own/CEP-DVS/data/dvs_processed/02398.pt",
+      "raw_events": "/home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/02398.mat"
+    },
+    {
+      "sample_id": 2316,
+      "label": 14,
+      "rgb": "/home/user/Datasets/kpm-own/CEP-DVS/data/img/02316.jpg",
+      "dvs": "/home/user/Datasets/kpm-own/CEP-DVS/data/dvs_processed/02316.pt",
+      "raw_events": "/home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/02316.mat"
+    },
+    {
+      "sample_id": 6518,
+      "label": 15,
+      "rgb": "/home/user/Datasets/kpm-own/CEP-DVS/data/img/06518.jpg",
+      "dvs": "/home/user/Datasets/kpm-own/CEP-DVS/data/dvs_processed/06518.pt",
+      "raw_events": "/home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/06518.mat"
+    },
+    {
+      "sample_id": 1795,
+      "label": 16,
+      "rgb": "/home/user/Datasets/kpm-own/CEP-DVS/data/img/01795.jpg",
+      "dvs": "/home/user/Datasets/kpm-own/CEP-DVS/data/dvs_processed/01795.pt",
+      "raw_events": "/home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/01795.mat"
+    },
+    {
+      "sample_id": 4931,
+      "label": 17,
+      "rgb": "/home/user/Datasets/kpm-own/CEP-DVS/data/img/04931.jpg",
+      "dvs": "/home/user/Datasets/kpm-own/CEP-DVS/data/dvs_processed/04931.pt",
+      "raw_events": "/home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/04931.mat"
+    },
+    {
+      "sample_id": 27,
+      "label": 18,
+      "rgb": "/home/user/Datasets/kpm-own/CEP-DVS/data/img/00027.jpg",
+      "dvs": "/home/user/Datasets/kpm-own/CEP-DVS/data/dvs_processed/00027.pt",
+      "raw_events": "/home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/00027.mat"
+    },
+    {
+      "sample_id": 7718,
+      "label": 19,
+      "rgb": "/home/user/Datasets/kpm-own/CEP-DVS/data/img/07718.jpg",
+      "dvs": "/home/user/Datasets/kpm-own/CEP-DVS/data/dvs_processed/07718.pt",
+      "raw_events": "/home/user/Datasets/kpm-own/CEP-DVS/data/MAT/img/07718.mat"
+    }
+  ]
+}

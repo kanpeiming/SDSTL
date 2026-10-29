@@ -137,15 +137,22 @@ class Trainer(object):
 
         with torch.no_grad():
             for i, (data, labels) in enumerate(test_loader):
+                guidance_frame = None
+                if getattr(self.args, 'attention_source', 'mid_event') in ('gray_rgb', 'rgb'):
+                    data, guidance_frame = data
+                    guidance_frame = guidance_frame.to(self.device)
                 if len(data.shape) == 4:
                     data = self.encoder_dict[self.args.encoder_type](data)
 
                 data, labels = data.to(self.device), labels.to(self.device)
-                outputs = self.network(data)
+                if guidance_frame is None:
+                    outputs = self.network(data)
+                else:
+                    outputs = self.network(data, guidance_frame=guidance_frame)
                 mean_out = outputs.mean(1)
                 loss = self.criterion(outputs, labels)
 
-                test_loss += loss.item()
+                test_loss += loss.item() * labels.size(0)
                 test_num += float(labels.size(0))
                 _, predicted = mean_out.cpu().max(1)
                 test_correct += float(predicted.eq(labels.cpu()).sum().item())
@@ -183,7 +190,8 @@ class BaselineTrainer(Trainer):
     """
     def __init__(self, args, device, writer, network, optimizer, criterion, scheduler, model_path):
         super(BaselineTrainer, self).__init__(args, device, writer, network, optimizer, criterion, scheduler, model_path)
-        self.best_train_acc = 0
+        self.best_train_acc = -1.0
+        self.best_val_acc = -1.0
 
     def train(self, train_loader, val_loader=None, test_loader=None):
         """
@@ -198,6 +206,9 @@ class BaselineTrainer(Trainer):
             self.network.train()
             start = time.time()
             train_loss = 0
+            train_classification_loss = 0
+            train_attention_loss = 0
+            empty_middle_frames = 0
             train_num = 0
             train_correct = 0
 
@@ -209,17 +220,34 @@ class BaselineTrainer(Trainer):
             for i, (data, labels) in pbar:
                 self.optimizer.zero_grad()
 
+                guidance_frame = None
+                if self.args.attention_source in ('gray_rgb', 'rgb'):
+                    data, guidance_frame = data
+                    guidance_frame = guidance_frame.to(self.device)
+
                 # 若输入为rgb图片，则转换为2通道的脉冲编码，(N, 3, H, W) -> (N, T, 2, H, W)
                 if len(data.shape) == 4:
                     data = self.encoder_dict[self.args.encoder_type](data, out_channel=2)
 
                 data, labels = data.to(self.device), labels.to(self.device)
+                if self.args.use_event_attention and guidance_frame is None:
+                    middle = data[:, [max(0, data.size(1) // 2 - 1), data.size(1) // 2]]
+                    empty_middle_frames += (middle.abs().sum(dim=(1, 2, 3, 4)) <= 1e-6).sum().item()
 
-                outputs = self.network(data.float())
+                if self.args.attention_loss_weight > 0:
+                    outputs, attention_loss = self.network(
+                        data.float(), return_attention_loss=True, guidance_frame=guidance_frame)
+                    attention_loss = attention_loss.mean()
+                else:
+                    outputs = self.network(data.float(), guidance_frame=guidance_frame)
                 mean_out = outputs.mean(1)
                 loss = self.criterion(outputs, labels)
+                train_classification_loss += loss.item() * labels.size(0)
+                if self.args.attention_loss_weight > 0:
+                    loss = loss + self.args.attention_loss_weight * attention_loss
+                    train_attention_loss += attention_loss.item() * labels.size(0)
 
-                train_loss += loss.item()
+                train_loss += loss.item() * labels.size(0)
                 loss.mean().backward()
                 self.optimizer.step()
 
@@ -228,7 +256,7 @@ class BaselineTrainer(Trainer):
                 train_correct += float(predicted.eq(labels.cpu()).sum().item())
                 
                 # 更新进度条信息
-                current_loss = train_loss / (i + 1)
+                current_loss = train_loss / train_num
                 current_acc = train_correct / train_num
                 pbar.set_postfix({'loss': f'{current_loss:.4f}', 'acc': f'{current_acc:.3f}'})
             
@@ -237,6 +265,18 @@ class BaselineTrainer(Trainer):
             self.scheduler.step()
             train_acc = train_correct / train_num
             train_loss = train_loss / train_num
+            self.writer.add_scalar('train/classification_loss', train_classification_loss / train_num, epoch)
+            if self.args.attention_loss_weight > 0:
+                self.writer.add_scalar('train/attention_loss', train_attention_loss / train_num, epoch)
+                self.writer.add_scalar('train/weighted_attention_loss',
+                                       self.args.attention_loss_weight * train_attention_loss / train_num, epoch)
+            if self.args.use_event_attention and self.args.attention_source == 'mid_event':
+                self.writer.add_scalar('train/empty_middle_frame_ratio', empty_middle_frames / train_num, epoch)
+            if self.args.use_event_attention:
+                network = self.network.module if isinstance(self.network, nn.DataParallel) else self.network
+                for name, module in network.named_children():
+                    if name.startswith('event_attn_'):
+                        self.writer.add_scalar(f'attention/{name}_gamma', module.gamma.item(), epoch)
             
             time_cost = (time.time() - start) / 60
             print(f'Epoch:[{epoch}/{self.args.epoch}]\t time cost: {time_cost:.2f}min\t '

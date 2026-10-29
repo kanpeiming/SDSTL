@@ -1,0 +1,1689 @@
+﻿[
+
+  {
+
+    "filename": "Baseline_CEP-DVS_img48_T10_seed1000_ratio1_lr0.001_epoch50_ft.pth",
+
+    "bytes": 41676644,
+
+    "sha256": "26eaa45f38a727dbd2ea283618beaca67e25e02e53cbd0845f271d1f719d7d6a",
+
+    "top_level_keys": [
+
+      "T",
+
+      "batch_size",
+
+      "checkpoint",
+
+      "data_dir",
+
+      "data_set",
+
+      "device",
+
+      "dvs_encoding_type",
+
+      "dvs_sample_ratio",
+
+      "encoder_type",
+
+      "epoch",
+
+      "eventrpg_mix_prob",
+
+      "experiment_name",
+
+      "id",
+
+      "img_shape",
+
+      "lamb",
+
+      "log_dir",
+
+      "lr",
+
+      "model",
+
+      "parallel",
+
+      "pretrained_path",
+
+      "seed",
+
+      "use_eventrpg",
+
+      "weight_decay",
+
+      "net",
+
+      "best_test_acc"
+
+    ],
+
+    "metadata": {
+
+      "T": 10,
+
+      "batch_size": 64,
+
+      "data_set": "CEP-DVS",
+
+      "dvs_encoding_type": "TET",
+
+      "dvs_sample_ratio": 1,
+
+      "encoder_type": "lap_encoder",
+
+      "epoch": 20,
+
+      "experiment_name": "ft",
+
+      "id": "test",
+
+      "img_shape": 48,
+
+      "lr": 0.001,
+
+      "model": "vgg16",
+
+      "parallel": false,
+
+      "pretrained_path": "/home/user/kpm/kpm/results/SDSTL/pretrain/checkpoints/CEP-DVS_EdgePretrain_20_CEP-DVS_RGB2Edge_Pretrain_AP_enc-time_encoder_opt-Adam_lr0.001_T10_seed1000_RGB1.0_TWoSobelEdge_img_shape48/rgb_edge_pretrained_best.pth",
+
+      "seed": 1000,
+
+      "use_eventrpg": false,
+
+      "weight_decay": 0.0005,
+
+      "best_test_acc": 1.0
+
+    },
+
+    "state_key": "net",
+
+    "tensor_count": 60,
+
+    "tensor_numel": 10415964,
+
+    "first_tensor_keys": [
+
+      "dvs_input.fwd.module.0.weight",
+
+      "dvs_input.fwd.module.0.bias",
+
+      "dvs_input.fwd.module.1.weight",
+
+      "dvs_input.fwd.module.1.bias",
+
+      "dvs_input.fwd.module.1.running_mean",
+
+      "dvs_input.fwd.module.1.running_var",
+
+      "dvs_input.fwd.module.1.num_batches_tracked",
+
+      "features.0.fwd.module.0.weight",
+
+      "features.0.fwd.module.0.bias",
+
+      "features.0.fwd.module.1.weight",
+
+      "features.0.fwd.module.1.bias",
+
+      "features.0.fwd.module.1.running_mean"
+
+    ],
+
+    "last_tensor_keys": [
+
+      "features.8.fwd.module.1.num_batches_tracked",
+
+      "features.9.fwd.module.0.weight",
+
+      "features.9.fwd.module.0.bias",
+
+      "features.9.fwd.module.1.weight",
+
+      "features.9.fwd.module.1.bias",
+
+      "features.9.fwd.module.1.running_mean",
+
+      "features.9.fwd.module.1.running_var",
+
+      "features.9.fwd.module.1.num_batches_tracked",
+
+      "bottleneck.module.weight",
+
+      "bottleneck.module.bias",
+
+      "classifier.module.weight",
+
+      "classifier.module.bias"
+
+    ],
+
+    "weight_shapes": {
+
+      "dvs_input.fwd.module.0.weight": [
+
+        64,
+
+        2,
+
+        3,
+
+        3
+
+      ],
+
+      "dvs_input.fwd.module.1.weight": [
+
+        64
+
+      ],
+
+      "features.0.fwd.module.0.weight": [
+
+        128,
+
+        64,
+
+        3,
+
+        3
+
+      ],
+
+      "features.0.fwd.module.1.weight": [
+
+        128
+
+      ],
+
+      "features.2.fwd.module.0.weight": [
+
+        256,
+
+        128,
+
+        3,
+
+        3
+
+      ],
+
+      "features.2.fwd.module.1.weight": [
+
+        256
+
+      ],
+
+      "features.3.fwd.module.0.weight": [
+
+        256,
+
+        256,
+
+        3,
+
+        3
+
+      ],
+
+      "features.3.fwd.module.1.weight": [
+
+        256
+
+      ],
+
+      "features.5.fwd.module.0.weight": [
+
+        512,
+
+        256,
+
+        3,
+
+        3
+
+      ],
+
+      "features.5.fwd.module.1.weight": [
+
+        512
+
+      ],
+
+      "features.6.fwd.module.0.weight": [
+
+        512,
+
+        512,
+
+        3,
+
+        3
+
+      ],
+
+      "features.6.fwd.module.1.weight": [
+
+        512
+
+      ],
+
+      "features.8.fwd.module.0.weight": [
+
+        512,
+
+        512,
+
+        3,
+
+        3
+
+      ],
+
+      "features.8.fwd.module.1.weight": [
+
+        512
+
+      ],
+
+      "features.9.fwd.module.0.weight": [
+
+        512,
+
+        512,
+
+        3,
+
+        3
+
+      ],
+
+      "features.9.fwd.module.1.weight": [
+
+        512
+
+      ],
+
+      "bottleneck.module.weight": [
+
+        256,
+
+        4608
+
+      ],
+
+      "classifier.module.weight": [
+
+        20,
+
+        256
+
+      ]
+
+    }
+
+  },
+
+  {
+
+    "filename": "Baseline_CEP-DVS_img48_T10_seed1000_ratio1_lr0.001_epoch80_baseline.pth",
+
+    "bytes": 41676943,
+
+    "sha256": "695e65c4543e623d0c4ca0ea97448043cf3ddbb786734798950d391258294e91",
+
+    "top_level_keys": [
+
+      "T",
+
+      "batch_size",
+
+      "caltech101_dvs_path",
+
+      "checkpoint",
+
+      "data_dir",
+
+      "data_set",
+
+      "device",
+
+      "dvs_encoding_type",
+
+      "dvs_sample_ratio",
+
+      "encoder_type",
+
+      "epoch",
+
+      "event_attention_reduction",
+
+      "eventrpg_mix_prob",
+
+      "experiment_name",
+
+      "fine_tuning",
+
+      "id",
+
+      "img_shape",
+
+      "lamb",
+
+      "log_dir",
+
+      "lr",
+
+      "model",
+
+      "num_workers",
+
+      "parallel",
+
+      "pretrained_path",
+
+      "seed",
+
+      "skip_bottleneck",
+
+      "skip_classifier",
+
+      "skip_dvs_input",
+
+      "skip_features",
+
+      "use_event_attention",
+
+      "use_eventrpg",
+
+      "val_strategy",
+
+      "weight_decay",
+
+      "net",
+
+      "best_test_acc"
+
+    ],
+
+    "metadata": {
+
+      "T": 10,
+
+      "batch_size": 64,
+
+      "data_set": "CEP-DVS",
+
+      "dvs_encoding_type": "TET",
+
+      "dvs_sample_ratio": 1,
+
+      "encoder_type": "lap_encoder",
+
+      "epoch": 34,
+
+      "experiment_name": "baseline",
+
+      "fine_tuning": "no",
+
+      "id": "test",
+
+      "img_shape": 48,
+
+      "lr": 0.001,
+
+      "model": "vgg16",
+
+      "parallel": false,
+
+      "pretrained_path": "/home/user/kpm/kpm/results/SDSTL/pretrain/checkpoints/CEP-DVS_EdgePretrain_20_CEP-DVS_RGB2Edge_Pretrain_AP_enc-time_encoder_opt-Adam_lr0.001_T2_seed1000_RGB1.0_TWoSobelEdge_TET_img_shape48/rgb_edge_pretrained_best.pth",
+
+      "seed": 1000,
+
+      "skip_bottleneck": false,
+
+      "skip_classifier": false,
+
+      "skip_dvs_input": false,
+
+      "skip_features": false,
+
+      "use_event_attention": false,
+
+      "use_eventrpg": false,
+
+      "val_strategy": "none",
+
+      "weight_decay": 0.0005,
+
+      "best_test_acc": 1.0
+
+    },
+
+    "state_key": "net",
+
+    "tensor_count": 60,
+
+    "tensor_numel": 10415964,
+
+    "first_tensor_keys": [
+
+      "dvs_input.fwd.module.0.weight",
+
+      "dvs_input.fwd.module.0.bias",
+
+      "dvs_input.fwd.module.1.weight",
+
+      "dvs_input.fwd.module.1.bias",
+
+      "dvs_input.fwd.module.1.running_mean",
+
+      "dvs_input.fwd.module.1.running_var",
+
+      "dvs_input.fwd.module.1.num_batches_tracked",
+
+      "features.0.fwd.module.0.weight",
+
+      "features.0.fwd.module.0.bias",
+
+      "features.0.fwd.module.1.weight",
+
+      "features.0.fwd.module.1.bias",
+
+      "features.0.fwd.module.1.running_mean"
+
+    ],
+
+    "last_tensor_keys": [
+
+      "features.8.fwd.module.1.num_batches_tracked",
+
+      "features.9.fwd.module.0.weight",
+
+      "features.9.fwd.module.0.bias",
+
+      "features.9.fwd.module.1.weight",
+
+      "features.9.fwd.module.1.bias",
+
+      "features.9.fwd.module.1.running_mean",
+
+      "features.9.fwd.module.1.running_var",
+
+      "features.9.fwd.module.1.num_batches_tracked",
+
+      "bottleneck.module.weight",
+
+      "bottleneck.module.bias",
+
+      "classifier.module.weight",
+
+      "classifier.module.bias"
+
+    ],
+
+    "weight_shapes": {
+
+      "dvs_input.fwd.module.0.weight": [
+
+        64,
+
+        2,
+
+        3,
+
+        3
+
+      ],
+
+      "dvs_input.fwd.module.1.weight": [
+
+        64
+
+      ],
+
+      "features.0.fwd.module.0.weight": [
+
+        128,
+
+        64,
+
+        3,
+
+        3
+
+      ],
+
+      "features.0.fwd.module.1.weight": [
+
+        128
+
+      ],
+
+      "features.2.fwd.module.0.weight": [
+
+        256,
+
+        128,
+
+        3,
+
+        3
+
+      ],
+
+      "features.2.fwd.module.1.weight": [
+
+        256
+
+      ],
+
+      "features.3.fwd.module.0.weight": [
+
+        256,
+
+        256,
+
+        3,
+
+        3
+
+      ],
+
+      "features.3.fwd.module.1.weight": [
+
+        256
+
+      ],
+
+      "features.5.fwd.module.0.weight": [
+
+        512,
+
+        256,
+
+        3,
+
+        3
+
+      ],
+
+      "features.5.fwd.module.1.weight": [
+
+        512
+
+      ],
+
+      "features.6.fwd.module.0.weight": [
+
+        512,
+
+        512,
+
+        3,
+
+        3
+
+      ],
+
+      "features.6.fwd.module.1.weight": [
+
+        512
+
+      ],
+
+      "features.8.fwd.module.0.weight": [
+
+        512,
+
+        512,
+
+        3,
+
+        3
+
+      ],
+
+      "features.8.fwd.module.1.weight": [
+
+        512
+
+      ],
+
+      "features.9.fwd.module.0.weight": [
+
+        512,
+
+        512,
+
+        3,
+
+        3
+
+      ],
+
+      "features.9.fwd.module.1.weight": [
+
+        512
+
+      ],
+
+      "bottleneck.module.weight": [
+
+        256,
+
+        4608
+
+      ],
+
+      "classifier.module.weight": [
+
+        20,
+
+        256
+
+      ]
+
+    }
+
+  },
+
+  {
+
+    "filename": "Baseline_CEP-DVS_img48_T10_seed1000_ratio1_lr0.001_epoch80_ft.pth",
+
+    "bytes": 41676644,
+
+    "sha256": "773ae5f7a65450b26de66b63f93e6d4ecab1e2a4be6624ee9ea40e71d51af8ca",
+
+    "top_level_keys": [
+
+      "T",
+
+      "batch_size",
+
+      "checkpoint",
+
+      "data_dir",
+
+      "data_set",
+
+      "device",
+
+      "dvs_encoding_type",
+
+      "dvs_sample_ratio",
+
+      "encoder_type",
+
+      "epoch",
+
+      "eventrpg_mix_prob",
+
+      "experiment_name",
+
+      "id",
+
+      "img_shape",
+
+      "lamb",
+
+      "log_dir",
+
+      "lr",
+
+      "model",
+
+      "parallel",
+
+      "pretrained_path",
+
+      "seed",
+
+      "use_eventrpg",
+
+      "weight_decay",
+
+      "net",
+
+      "best_test_acc"
+
+    ],
+
+    "metadata": {
+
+      "T": 10,
+
+      "batch_size": 64,
+
+      "data_set": "CEP-DVS",
+
+      "dvs_encoding_type": "TET",
+
+      "dvs_sample_ratio": 1,
+
+      "encoder_type": "lap_encoder",
+
+      "epoch": 5,
+
+      "experiment_name": "ft",
+
+      "id": "test",
+
+      "img_shape": 48,
+
+      "lr": 0.001,
+
+      "model": "vgg16",
+
+      "parallel": false,
+
+      "pretrained_path": "/home/user/kpm/kpm/results/SDSTL/pretrain/checkpoints/CEP-DVS_EdgePretrain_20_CEP-DVS_RGB2Edge_Pretrain_AP_enc-time_encoder_opt-Adam_lr0.001_T10_seed1000_RGB1.0_TWoSobelEdge_img_shape48/rgb_edge_pretrained_best.pth",
+
+      "seed": 1000,
+
+      "use_eventrpg": false,
+
+      "weight_decay": 0.0005,
+
+      "best_test_acc": 0.73359375
+
+    },
+
+    "state_key": "net",
+
+    "tensor_count": 60,
+
+    "tensor_numel": 10415964,
+
+    "first_tensor_keys": [
+
+      "dvs_input.fwd.module.0.weight",
+
+      "dvs_input.fwd.module.0.bias",
+
+      "dvs_input.fwd.module.1.weight",
+
+      "dvs_input.fwd.module.1.bias",
+
+      "dvs_input.fwd.module.1.running_mean",
+
+      "dvs_input.fwd.module.1.running_var",
+
+      "dvs_input.fwd.module.1.num_batches_tracked",
+
+      "features.0.fwd.module.0.weight",
+
+      "features.0.fwd.module.0.bias",
+
+      "features.0.fwd.module.1.weight",
+
+      "features.0.fwd.module.1.bias",
+
+      "features.0.fwd.module.1.running_mean"
+
+    ],
+
+    "last_tensor_keys": [
+
+      "features.8.fwd.module.1.num_batches_tracked",
+
+      "features.9.fwd.module.0.weight",
+
+      "features.9.fwd.module.0.bias",
+
+      "features.9.fwd.module.1.weight",
+
+      "features.9.fwd.module.1.bias",
+
+      "features.9.fwd.module.1.running_mean",
+
+      "features.9.fwd.module.1.running_var",
+
+      "features.9.fwd.module.1.num_batches_tracked",
+
+      "bottleneck.module.weight",
+
+      "bottleneck.module.bias",
+
+      "classifier.module.weight",
+
+      "classifier.module.bias"
+
+    ],
+
+    "weight_shapes": {
+
+      "dvs_input.fwd.module.0.weight": [
+
+        64,
+
+        2,
+
+        3,
+
+        3
+
+      ],
+
+      "dvs_input.fwd.module.1.weight": [
+
+        64
+
+      ],
+
+      "features.0.fwd.module.0.weight": [
+
+        128,
+
+        64,
+
+        3,
+
+        3
+
+      ],
+
+      "features.0.fwd.module.1.weight": [
+
+        128
+
+      ],
+
+      "features.2.fwd.module.0.weight": [
+
+        256,
+
+        128,
+
+        3,
+
+        3
+
+      ],
+
+      "features.2.fwd.module.1.weight": [
+
+        256
+
+      ],
+
+      "features.3.fwd.module.0.weight": [
+
+        256,
+
+        256,
+
+        3,
+
+        3
+
+      ],
+
+      "features.3.fwd.module.1.weight": [
+
+        256
+
+      ],
+
+      "features.5.fwd.module.0.weight": [
+
+        512,
+
+        256,
+
+        3,
+
+        3
+
+      ],
+
+      "features.5.fwd.module.1.weight": [
+
+        512
+
+      ],
+
+      "features.6.fwd.module.0.weight": [
+
+        512,
+
+        512,
+
+        3,
+
+        3
+
+      ],
+
+      "features.6.fwd.module.1.weight": [
+
+        512
+
+      ],
+
+      "features.8.fwd.module.0.weight": [
+
+        512,
+
+        512,
+
+        3,
+
+        3
+
+      ],
+
+      "features.8.fwd.module.1.weight": [
+
+        512
+
+      ],
+
+      "features.9.fwd.module.0.weight": [
+
+        512,
+
+        512,
+
+        3,
+
+        3
+
+      ],
+
+      "features.9.fwd.module.1.weight": [
+
+        512
+
+      ],
+
+      "bottleneck.module.weight": [
+
+        256,
+
+        4608
+
+      ],
+
+      "classifier.module.weight": [
+
+        20,
+
+        256
+
+      ]
+
+    }
+
+  },
+
+  {
+
+    "filename": "SDSTL_CEP-DVS_TET_img48_T10_seed1000_dvs1_enc-TET_lr0.001_VGGSNN_namebaseline.pth",
+
+    "bytes": 41676427,
+
+    "sha256": "dfcce4f79e0a9f8f7eabb38249adc1abdb271653c93fea6384f822ce45b9740c",
+
+    "top_level_keys": [
+
+      "T",
+
+      "batch_size",
+
+      "checkpoint",
+
+      "data_dir",
+
+      "data_set",
+
+      "device",
+
+      "dvs_encoding_type",
+
+      "dvs_sample_ratio",
+
+      "encoder_type",
+
+      "epoch",
+
+      "eventrpg_mix_prob",
+
+      "experiment_name",
+
+      "id",
+
+      "img_shape",
+
+      "lamb",
+
+      "log_dir",
+
+      "lr",
+
+      "model",
+
+      "parallel",
+
+      "pretrained_path",
+
+      "seed",
+
+      "use_eventrpg",
+
+      "weight_decay",
+
+      "net",
+
+      "best_test_acc"
+
+    ],
+
+    "metadata": {
+
+      "T": 10,
+
+      "batch_size": 64,
+
+      "data_set": "CEP-DVS",
+
+      "dvs_encoding_type": "TET",
+
+      "dvs_sample_ratio": 1,
+
+      "encoder_type": "lap_encoder",
+
+      "epoch": 22,
+
+      "experiment_name": "baseline",
+
+      "id": "test",
+
+      "img_shape": 48,
+
+      "lr": 0.001,
+
+      "model": "vgg16",
+
+      "parallel": false,
+
+      "pretrained_path": null,
+
+      "seed": 1000,
+
+      "use_eventrpg": false,
+
+      "weight_decay": 0.0005,
+
+      "best_test_acc": 1.0
+
+    },
+
+    "state_key": "net",
+
+    "tensor_count": 60,
+
+    "tensor_numel": 10415964,
+
+    "first_tensor_keys": [
+
+      "dvs_input.fwd.module.0.weight",
+
+      "dvs_input.fwd.module.0.bias",
+
+      "dvs_input.fwd.module.1.weight",
+
+      "dvs_input.fwd.module.1.bias",
+
+      "dvs_input.fwd.module.1.running_mean",
+
+      "dvs_input.fwd.module.1.running_var",
+
+      "dvs_input.fwd.module.1.num_batches_tracked",
+
+      "features.0.fwd.module.0.weight",
+
+      "features.0.fwd.module.0.bias",
+
+      "features.0.fwd.module.1.weight",
+
+      "features.0.fwd.module.1.bias",
+
+      "features.0.fwd.module.1.running_mean"
+
+    ],
+
+    "last_tensor_keys": [
+
+      "features.8.fwd.module.1.num_batches_tracked",
+
+      "features.9.fwd.module.0.weight",
+
+      "features.9.fwd.module.0.bias",
+
+      "features.9.fwd.module.1.weight",
+
+      "features.9.fwd.module.1.bias",
+
+      "features.9.fwd.module.1.running_mean",
+
+      "features.9.fwd.module.1.running_var",
+
+      "features.9.fwd.module.1.num_batches_tracked",
+
+      "bottleneck.module.weight",
+
+      "bottleneck.module.bias",
+
+      "classifier.module.weight",
+
+      "classifier.module.bias"
+
+    ],
+
+    "weight_shapes": {
+
+      "dvs_input.fwd.module.0.weight": [
+
+        64,
+
+        2,
+
+        3,
+
+        3
+
+      ],
+
+      "dvs_input.fwd.module.1.weight": [
+
+        64
+
+      ],
+
+      "features.0.fwd.module.0.weight": [
+
+        128,
+
+        64,
+
+        3,
+
+        3
+
+      ],
+
+      "features.0.fwd.module.1.weight": [
+
+        128
+
+      ],
+
+      "features.2.fwd.module.0.weight": [
+
+        256,
+
+        128,
+
+        3,
+
+        3
+
+      ],
+
+      "features.2.fwd.module.1.weight": [
+
+        256
+
+      ],
+
+      "features.3.fwd.module.0.weight": [
+
+        256,
+
+        256,
+
+        3,
+
+        3
+
+      ],
+
+      "features.3.fwd.module.1.weight": [
+
+        256
+
+      ],
+
+      "features.5.fwd.module.0.weight": [
+
+        512,
+
+        256,
+
+        3,
+
+        3
+
+      ],
+
+      "features.5.fwd.module.1.weight": [
+
+        512
+
+      ],
+
+      "features.6.fwd.module.0.weight": [
+
+        512,
+
+        512,
+
+        3,
+
+        3
+
+      ],
+
+      "features.6.fwd.module.1.weight": [
+
+        512
+
+      ],
+
+      "features.8.fwd.module.0.weight": [
+
+        512,
+
+        512,
+
+        3,
+
+        3
+
+      ],
+
+      "features.8.fwd.module.1.weight": [
+
+        512
+
+      ],
+
+      "features.9.fwd.module.0.weight": [
+
+        512,
+
+        512,
+
+        3,
+
+        3
+
+      ],
+
+      "features.9.fwd.module.1.weight": [
+
+        512
+
+      ],
+
+      "bottleneck.module.weight": [
+
+        256,
+
+        4608
+
+      ],
+
+      "classifier.module.weight": [
+
+        20,
+
+        256
+
+      ]
+
+    }
+
+  },
+
+  {
+
+    "filename": "SDSTL_CEP-DVS_TET_img48_T10_seed1000_dvs1_enc-TET_lr0.001_VGGSNN_nameft.pth",
+
+    "bytes": 41676644,
+
+    "sha256": "dd93ae21a16f85dff12041100b1418cf2c2aedc9f053c7bc055253cb62882bb0",
+
+    "top_level_keys": [
+
+      "T",
+
+      "batch_size",
+
+      "checkpoint",
+
+      "data_dir",
+
+      "data_set",
+
+      "device",
+
+      "dvs_encoding_type",
+
+      "dvs_sample_ratio",
+
+      "encoder_type",
+
+      "epoch",
+
+      "eventrpg_mix_prob",
+
+      "experiment_name",
+
+      "id",
+
+      "img_shape",
+
+      "lamb",
+
+      "log_dir",
+
+      "lr",
+
+      "model",
+
+      "parallel",
+
+      "pretrained_path",
+
+      "seed",
+
+      "use_eventrpg",
+
+      "weight_decay",
+
+      "net",
+
+      "best_test_acc"
+
+    ],
+
+    "metadata": {
+
+      "T": 10,
+
+      "batch_size": 64,
+
+      "data_set": "CEP-DVS",
+
+      "dvs_encoding_type": "TET",
+
+      "dvs_sample_ratio": 1,
+
+      "encoder_type": "lap_encoder",
+
+      "epoch": 18,
+
+      "experiment_name": "ft",
+
+      "id": "test",
+
+      "img_shape": 48,
+
+      "lr": 0.001,
+
+      "model": "vgg16",
+
+      "parallel": false,
+
+      "pretrained_path": "/home/user/kpm/kpm/results/SDSTL/pretrain/checkpoints/CEP-DVS_EdgePretrain_20_CEP-DVS_RGB2Edge_Pretrain_AP_enc-time_encoder_opt-Adam_lr0.001_T10_seed1000_RGB1.0_TWoSobelEdge_img_shape48/rgb_edge_pretrained_best.pth",
+
+      "seed": 1000,
+
+      "use_eventrpg": false,
+
+      "weight_decay": 0.0005,
+
+      "best_test_acc": 1.0
+
+    },
+
+    "state_key": "net",
+
+    "tensor_count": 60,
+
+    "tensor_numel": 10415964,
+
+    "first_tensor_keys": [
+
+      "dvs_input.fwd.module.0.weight",
+
+      "dvs_input.fwd.module.0.bias",
+
+      "dvs_input.fwd.module.1.weight",
+
+      "dvs_input.fwd.module.1.bias",
+
+      "dvs_input.fwd.module.1.running_mean",
+
+      "dvs_input.fwd.module.1.running_var",
+
+      "dvs_input.fwd.module.1.num_batches_tracked",
+
+      "features.0.fwd.module.0.weight",
+
+      "features.0.fwd.module.0.bias",
+
+      "features.0.fwd.module.1.weight",
+
+      "features.0.fwd.module.1.bias",
+
+      "features.0.fwd.module.1.running_mean"
+
+    ],
+
+    "last_tensor_keys": [
+
+      "features.8.fwd.module.1.num_batches_tracked",
+
+      "features.9.fwd.module.0.weight",
+
+      "features.9.fwd.module.0.bias",
+
+      "features.9.fwd.module.1.weight",
+
+      "features.9.fwd.module.1.bias",
+
+      "features.9.fwd.module.1.running_mean",
+
+      "features.9.fwd.module.1.running_var",
+
+      "features.9.fwd.module.1.num_batches_tracked",
+
+      "bottleneck.module.weight",
+
+      "bottleneck.module.bias",
+
+      "classifier.module.weight",
+
+      "classifier.module.bias"
+
+    ],
+
+    "weight_shapes": {
+
+      "dvs_input.fwd.module.0.weight": [
+
+        64,
+
+        2,
+
+        3,
+
+        3
+
+      ],
+
+      "dvs_input.fwd.module.1.weight": [
+
+        64
+
+      ],
+
+      "features.0.fwd.module.0.weight": [
+
+        128,
+
+        64,
+
+        3,
+
+        3
+
+      ],
+
+      "features.0.fwd.module.1.weight": [
+
+        128
+
+      ],
+
+      "features.2.fwd.module.0.weight": [
+
+        256,
+
+        128,
+
+        3,
+
+        3
+
+      ],
+
+      "features.2.fwd.module.1.weight": [
+
+        256
+
+      ],
+
+      "features.3.fwd.module.0.weight": [
+
+        256,
+
+        256,
+
+        3,
+
+        3
+
+      ],
+
+      "features.3.fwd.module.1.weight": [
+
+        256
+
+      ],
+
+      "features.5.fwd.module.0.weight": [
+
+        512,
+
+        256,
+
+        3,
+
+        3
+
+      ],
+
+      "features.5.fwd.module.1.weight": [
+
+        512
+
+      ],
+
+      "features.6.fwd.module.0.weight": [
+
+        512,
+
+        512,
+
+        3,
+
+        3
+
+      ],
+
+      "features.6.fwd.module.1.weight": [
+
+        512
+
+      ],
+
+      "features.8.fwd.module.0.weight": [
+
+        512,
+
+        512,
+
+        3,
+
+        3
+
+      ],
+
+      "features.8.fwd.module.1.weight": [
+
+        512
+
+      ],
+
+      "features.9.fwd.module.0.weight": [
+
+        512,
+
+        512,
+
+        3,
+
+        3
+
+      ],
+
+      "features.9.fwd.module.1.weight": [
+
+        512
+
+      ],
+
+      "bottleneck.module.weight": [
+
+        256,
+
+        4608
+
+      ],
+
+      "classifier.module.weight": [
+
+        20,
+
+        256
+
+      ]
+
+    }
+
+  }
+
+]
+
+

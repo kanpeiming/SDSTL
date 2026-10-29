@@ -16,8 +16,15 @@ from models.TET__layer import *
 
 
 class VGGSNN(nn.Module):
+    # 与下游 VGGSNN 的注意力位置和参数名一致。
+    FEATURE_ATTENTION = {
+        0: (2, 128), 2: (3, 256), 3: (4, 256),
+        5: (5, 512), 6: (6, 512), 8: (7, 512), 9: (8, 512),
+    }
+
     def __init__(self, cls_num=10, img_shape=48, device='cuda', use_event_attention=False,
-                 event_attention_reduction=8, use_edge_extractor=False, rgb_to_gray=False):
+                 event_attention_reduction=8, use_edge_extractor=False, rgb_to_gray=False,
+                 edge_method='Sobel', event_attention_layers=2):
         super(VGGSNN, self).__init__()
         pool = SeqToANNContainer(nn.AvgPool2d(2))
         self.rgb_input = Layer(3, 64, 3, 1, 1, True)  # RGB 3通道输入
@@ -25,19 +32,32 @@ class VGGSNN(nn.Module):
 
         # 事件注意力开关
         self.use_event_attention = use_event_attention
+        if event_attention_layers not in (2, 8):
+            raise ValueError('event_attention_layers must be 2 or 8')
+        self.event_attention_layers = event_attention_layers
 
-        # 如果启用事件注意力，在前两层添加注意力模块
+        # 预训练：边缘提供 Q/V，同层 RGB 提供 K；下游推理：事件自身提供 Q/K/V。
         if self.use_event_attention:
             from models.TET__layer import EventMidFrameAttention
-            self.event_attn_1 = EventMidFrameAttention(64, reduction=event_attention_reduction)  # dvs_input后
-            self.event_attn_2 = EventMidFrameAttention(128, reduction=event_attention_reduction)  # features[0]后
+            self.event_attn_1 = EventMidFrameAttention(64, reduction=event_attention_reduction)
+            for _, (number, channels) in self.FEATURE_ATTENTION.items():
+                if number > self.event_attention_layers:
+                    continue
+                setattr(self, f'event_attn_{number}',
+                        EventMidFrameAttention(channels, reduction=event_attention_reduction))
 
         # 边缘提取器（仅用于 RGB->Edge 预训练，默认关闭）
         self.use_edge_extractor = use_edge_extractor
         if self.use_edge_extractor:
-            self.edge_extractor1 = SobelEdgeExtractionModule(device=device, in_channels=3)
-            # self.edge_extractor2 = CannyEdgeDetectionModule(device=device, in_channels=3)
-            self.edge_extractor2 = SobelEdgeExtractionModule(device=device, in_channels=3)
+            extractors = {
+                'Sobel': SobelEdgeExtractionModule,
+                'Canny': CannyEdgeDetectionModule,
+                'Laplacian': LaplacianEdgeExtractionModule,
+            }
+            if edge_method not in extractors:
+                raise ValueError(f"不支持的边缘提取方式: {edge_method}")
+            self.edge_method = edge_method
+            self.edge_extractor1 = extractors[edge_method](device=device, in_channels=3)
             self.rgb_to_gray = RGB2GrayscaleModule() if rgb_to_gray else None
         else:
             self.rgb_to_gray = None
@@ -67,13 +87,8 @@ class VGGSNN(nn.Module):
 
     def extract_edge(self, rgb_data):
         """
-        RGB -> 2通道边缘图（用于 RGB->Edge 预训练阶段生成目标域数据）
-
-        流程:
-            1. (可选) RGB转灰度（保持3通道）
-            2. edge_extractor1: SobelEdgeExtractionModule → 1通道连续梯度幅值
-            3. edge_extractor2: CannyEdgeDetectionModule → 1通道二值边缘
-            4. cat 为 2通道，近似 DVS 双通道（极性 ON/OFF）特性
+        RGB -> 2通道边缘图。所选算子生成 1 通道响应，再复制到 2 通道；
+        两通道只是模型输入形状适配，不代表事件的 ON/OFF 极性。
 
         Args:
             rgb_data: (N, 3, H, W) RGB图像
@@ -87,13 +102,11 @@ class VGGSNN(nn.Module):
         if self.rgb_to_gray is not None:
             rgb_data = self.rgb_to_gray(rgb_data)
 
-        # 双边缘提取（核心梯度算子均为 Sobel 核，后处理不同）
-        edge1 = self.edge_extractor1(rgb_data)  # Sobel 梯度幅值（连续值）
-        edge2 = self.edge_extractor2(rgb_data)  # 简化 Canny（高斯模糊→Sobel梯度→硬阈值二值化）
-        edge = torch.cat((edge1, edge2), dim=1)  # (N, 2, H, W)
-        return edge
+        edge = self.edge_extractor1(rgb_data)
+        return edge.repeat(1, 2, 1, 1)
 
-    def forward(self, source, target, encoder_tl_loss_type='TCKA', feature_tl_loss_type='MSE'):
+    def forward(self, source, target, encoder_tl_loss_type='TCKA', feature_tl_loss_type='MSE',
+                return_attention_loss=False):
         """
         Args:
             source: 源域输入，(N, T, C, H, W) C可以是3（RGB）或2（Edge）
@@ -110,6 +123,7 @@ class VGGSNN(nn.Module):
 
         if self.training:
             batch_size, T = source.shape[0:2]
+            attention_losses = []
 
             # 根据通道数选择输入层
             # 处理源域输入 (3通道RGB 或 2通道Edge)
@@ -126,9 +140,14 @@ class VGGSNN(nn.Module):
             else:
                 raise ValueError(f"Unexpected target channel number: {target.shape[2]}, expected 2")
             
-            # 【新增】第1处事件注意力：dvs_input 之后
+            # 第1处：Edge 提供 Q/V，RGB 提供 K。
             if self.use_event_attention:
-                target = self.event_attn_1(target)
+                if return_attention_loss:
+                    target, attention_loss = self.event_attn_1(
+                        target, key_source=source, return_aux_loss=True)
+                    attention_losses.append(attention_loss)
+                else:
+                    target = self.event_attn_1(target, key_source=source)
 
             # 计算编码器迁移损失
             if encoder_tl_loss_type == 'TCKA':
@@ -140,25 +159,26 @@ class VGGSNN(nn.Module):
             else:
                 raise Exception(f"Invalid encoder_tl_loss_type: {encoder_tl_loss_type}")
 
-            # 提取高层特征
-            # Source分支正常走
-            source = self.features(source)
+            # 共享卷积逐层提取，两路在每处注意力保持相同空间尺度。
+            for index, layer in enumerate(self.features):
+                source = layer(source)
+                target = layer(target)
+                if self.use_event_attention and index in self.FEATURE_ATTENTION:
+                    number, _ = self.FEATURE_ATTENTION[index]
+                    if number <= self.event_attention_layers:
+                        attention = getattr(self, f'event_attn_{number}')
+                        if return_attention_loss:
+                            target, attention_loss = attention(
+                                target, key_source=source, return_aux_loss=True)
+                            attention_losses.append(attention_loss)
+                        else:
+                            target = attention(target, key_source=source)
+
             source = torch.flatten(source, 2)
             source = self.bottleneck(source)
             source, source_mem = self.bottleneck_lif_node(source, return_mem=True)
             source_clf = self.classifier(source)
 
-            # Target(DVS)分支：在features第一层后添加第2处注意力
-            target = self.features[0](target)  # Layer(64, 128, ...)
-            
-            # 【新增】第2处事件注意力：features[0] 之后
-            if self.use_event_attention:
-                target = self.event_attn_2(target)
-            
-            # 继续后续层
-            for layer in self.features[1:]:
-                target = layer(target)
-            
             target = torch.flatten(target, 2)
             target = self.bottleneck(target)
             target, target_mem = self.bottleneck_lif_node(target, return_mem=True)
@@ -178,7 +198,12 @@ class VGGSNN(nn.Module):
             else:
                 raise Exception(f"Invalid feature_tl_loss_type: {feature_tl_loss_type}")
 
-            return source_clf, target_clf, encoder_tl_loss, feature_tl_loss  # 返回迁移损失,预训练阶段前两个返回值不需要
+            if return_attention_loss:
+                if not attention_losses:
+                    raise RuntimeError('注意力引导损失需要启用注意力模块')
+                return (source_clf, target_clf, encoder_tl_loss, feature_tl_loss,
+                        torch.stack(attention_losses).mean())
+            return source_clf, target_clf, encoder_tl_loss, feature_tl_loss
 
         else:
             # 测试模式：只处理目标域（DVS）数据
@@ -187,21 +212,17 @@ class VGGSNN(nn.Module):
             else:
                 target, _ = self.dvs_input(target)
             
-            # 【新增】测试时也要走相同的事件注意力路径
+            # 测试及下游只有目标模态，由自身提供 Q/K/V。
             if self.use_event_attention:
                 target = self.event_attn_1(target)
-            
-            # features第一层
-            target = self.features[0](target)
-            
-            # 【新增】第2处注意力
-            if self.use_event_attention:
-                target = self.event_attn_2(target)
-            
-            # 继续后续层
-            for layer in self.features[1:]:
+
+            for index, layer in enumerate(self.features):
                 target = layer(target)
-            
+                if self.use_event_attention and index in self.FEATURE_ATTENTION:
+                    number, _ = self.FEATURE_ATTENTION[index]
+                    if number <= self.event_attention_layers:
+                        target = getattr(self, f'event_attn_{number}')(target)
+
             target = torch.flatten(target, 2)
             target = self.bottleneck(target)
             target = self.bottleneck_lif_node(target)
@@ -211,7 +232,8 @@ class VGGSNN(nn.Module):
 
 class VGGSNNwoAP(VGGSNN):
     def __init__(self, cls_num=10, img_shape=32, use_event_attention=False,
-                 event_attention_reduction=8, use_edge_extractor=False, rgb_to_gray=False):
+                 event_attention_reduction=8, use_edge_extractor=False, rgb_to_gray=False,
+                 edge_method='Sobel', event_attention_layers=2):
         """
         VGGSNNwoAP: 使用stride=2卷积替代平均池化
 
@@ -227,7 +249,9 @@ class VGGSNNwoAP(VGGSNN):
                                          use_event_attention=use_event_attention,
                                          event_attention_reduction=event_attention_reduction,
                                          use_edge_extractor=use_edge_extractor,
-                                         rgb_to_gray=rgb_to_gray)
+                                         rgb_to_gray=rgb_to_gray,
+                                         edge_method=edge_method,
+                                         event_attention_layers=event_attention_layers)
         self.rgb_input = Layer(3, 64, 3, 1, 1, True)  # RGB 3通道输入
         self.dvs_input = Layer(2, 64, 3, 1, 1, True)  # DVS/Edge 2通道输入
         self.features = nn.Sequential(
